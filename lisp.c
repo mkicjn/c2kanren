@@ -755,7 +755,9 @@ void *l_type(void *args, void **cont, void **envp)
 	REQUIRED(args, 1);
 
 	void *x = car(args);
-	if (IN(x, syms)) {
+	if (!x) {
+		return NULL;
+	} else if (IN(x, syms)) {
 		return l_symbol_sym;
 	} else if (IN(x, prims)) {
 		return l_primitive_sym;

@@ -16,6 +16,10 @@ A minimization/simplification pass might be due in the future.
 For instance, about 25% of the source code is just for arithmetic primitives _alone_, which is stunning.
 If it were easier to do without numbers, I would be keen on deleting those.
 
+It also might be an interesting testbed for playing with other language modifications or implementation techniques, such as:
+* Linear types (a la Flea scheme)
+* Mark-sweep collection with object pools (to avoid copying)
+
 Implementation-wise, it was originally modeled a little bit after both SectorLISP and tinylisp, combining interesting aspects of the two with some ideas of my own.
 However, over time (and especially as I worked through the challenges of combining TCO and GC), things strayed further and further from either of the two and got a little more original.
 
@@ -31,20 +35,23 @@ A brief breakdown of this implementation's design, in general and relative to th
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
 
 Language-wise, it's really closer to a Scheme than say, Common Lisp, because of its small size and Lisp-1 namespacing (variables and functions in same namespace).
-However, it's not a "standard" Scheme, and there is a bit of a mix between the two stylistically, so I use the term "Lisp" simply for generality's sake.
+However, it's not a "standard" Scheme, and there is a bit of a mix between the two syntactically and semantically, so I use the term "Lisp" simply for generality's sake.
 
 A brief breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (variables and functions in same namespace)
 * Simple `define`s only (no `(define (f args) body)`; use `(define f (lambda args body))`)
-  * Note: `define` is the only "real" special form as `cond`, `let`, etc. are implemented as primitives
+  * Note: `define` is the only "real" special form as `cond`, `let`, etc. and even `lambda` are actually primitives that can be treated as values
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no backquote-unquote (yet?)
-* Default names are generally CL-like, minus `nil` and `null`
+* The semantics of nil are somewhere between CL and Scheme:
+  * Like CL, `()` is the only "false" value, and `(not ())` is `t`.
+  * Like Scheme, `nil` is not a special symbol, and `(car/cdr ())` is an error.
+* Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` ~= `ptr == NULL`)
   * Included: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
-  * Not included: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`
+  * Not included: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
 * `let` works exactly the same as a Scheme `letrec`
 * Variadic arithmetic functions and `and`/`or` as in either CL or Scheme (note: use `mod` as in CL, not `modulo` as in Scheme)
-* Type-checking: `type` returns a symbol (one of `symbol`, `cons`, `lambda`, `macro`, `primitive`) which can be compared with `eq`
+* Type-checking: `type` returns a symbol (one of `symbol`, `cons`, `lambda`, `macro`, `primitive`, or `()`) which can be compared with `eq`
 * Macros work very similarly to lambdas (and can be closures), e.g.,
   * `((lambda (x) x) (cons a b))` ~> `((lambda (x) x) (eval '(cons a b)))`
   * `((macro (x) x) (cons a b))` ~> `(eval ((lambda (x) x) '(cons a b)))`
