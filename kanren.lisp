@@ -1,3 +1,4 @@
+; Supporting non-Kanren definitions
 (define pair? (lambda (x) (not (atom x))))
 (define list (lambda args args))
 (define assoc
@@ -7,6 +8,21 @@
 	  (t (assoc k (cdr l))))))
 
 ;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	uKanren
+;
+; Commented-out code represents either tests or intermediate definitions that were upgraded later
+;
+; The general flow of these definitions roughly follows this talk by uKanren creators Daniel Friedman and Jason Hemann:
+; https://www.youtube.com/watch?v=0FwIwewHC3o
+;
+; Other interesting or excellent resources include:
+; * The original uKanren paper, which helped serve as a reference / view into a similar but slightly different approach:
+;     http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+; * "Unifying the Technical Interview", a fascinating article that drove the insipiration for this project and served as another reference:
+;     https://aphyr.com/posts/354-unifying-the-technical-interview
+;
 
 (define var (lambda (x) x))
 (define var?  (lambda (x) (eq (type x) 'number)))
