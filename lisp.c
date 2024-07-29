@@ -392,7 +392,7 @@ void *copy(void *x, ptrdiff_t diff)
 		return cdr(x);
 	// Deep copy the value normally
 	void *a = copy(car(x), diff);
-	void *d = copy(cdr(x), diff);
+	void *d = car(x) == NUMBER ? cdr(x) : copy(cdr(x), diff);
 	void *res = (void **)cons(a, d) - diff;
 	// Leave a forward pointer to indicate that the cell has already been copied
 	*CAR(x) = FORWARD;
