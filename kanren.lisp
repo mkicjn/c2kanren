@@ -169,18 +169,44 @@
 
 ;(take 4 (pull ((call/fresh (lambda (x) (turtles x))) init-s/c)))
 
-(define cats
-  (lambda (x)
-    (lambda (s/c)
-      (delay ((disj (== x 'cat) (cats x)) s/c)))))
+;(define cats
+;  (lambda (x)
+;    (lambda (s/c)
+;      (delay ((disj (== x 'cat) (cats x)) s/c)))))
 
 ;(take 4 (pull ((call/fresh (lambda (x) (cats x))) init-s/c)))
 
-(define cats-or-turtles
-  (lambda (x)
-    (lambda (s/c)
-      (delay ((disj (cats x) (turtles x)) s/c)))))
+;(define cats-or-turtles
+;  (lambda (x)
+;    (lambda (s/c)
+;      (delay ((disj (cats x) (turtles x)) s/c)))))
 
-(take 4 (pull ((call/fresh (lambda (x) (cats-or-turtles x))) init-s/c)))
+;(take 4 (pull ((call/fresh (lambda (x) (cats-or-turtles x))) init-s/c)))
 
 ; TODO: appendo
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Some macros to make things a little easier
+
+(define relation
+  (macro (args body)
+	 (list lambda args
+	       (list lambda '(s/c)
+		     (list delay (list body 's/c))))))
+
+(define dogs (relation (x) (disj (== x 'dog) (dogs x))))
+(define cats (relation (x) (disj (== x 'cat) (cats x))))
+
+(define fresh1
+  (macro (arg body)
+	 (list call/fresh (list lambda (list arg) body))))
+
+;(take 4 (pull ((fresh1 x (dogs x)) init-s/c)))
+
+(define run (lambda (n g) (take n (pull (g init-s/c)))))
+
+;(run 4 (fresh1 x (dogs x)))
+(run 4 (fresh1 x (disj (dogs x) (cats x))))
+
+; TODO: fresh - maybe reimagine call/fresh
+; TODO: add reification to run

@@ -5,7 +5,7 @@ This is a small project inspired by a number of sources, but it does what it say
 
 The main files:
 * `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection (basically done)
-* `kanren.lisp` - a port of uKanren to that Lisp (basically done), eventually to include useful macros and reification (not started)
+* `kanren.lisp` - a port of uKanren to that Lisp (basically done), eventually to include useful macros and reification (barely started)
 
 ## The Lisp
 
@@ -50,7 +50,7 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` ~= `ptr == NULL`)
   * Default names: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
-* `let` works exactly the same as a Scheme `letrec`
+* `let` works exactly the same as a Scheme `let*`
 * Variadic arithmetic functions and `and`/`or` as in either CL or Scheme (note: use `mod` as in CL, not `modulo` as in Scheme)
 * Type-checking: `type` returns a symbol (one of `symbol`, `cons`, `lambda`, `macro`, `primitive`, or `()`) which can be compared with `eq`
 * Macros work very similarly to lambdas (and can be closures), e.g.,
