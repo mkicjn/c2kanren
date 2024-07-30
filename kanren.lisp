@@ -1,4 +1,5 @@
 ; Supporting non-Kanren definitions
+(define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 (define pair? (lambda (x) (not (atom x))))
 (define list (lambda args args))
 (define assoc
@@ -222,13 +223,24 @@
 ;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
 
 ; TODO: Find a better way to define recursive macros
+;(define fresh
+;  (macro (args body)
+;	 (let ((expand (lambda (self args body)
+;			 (cond ((not args) body)
+;			       (t (list call/fresh
+;					(list lambda (list (car args))
+;					      (self self (cdr args) body))))))))
+;	   (expand expand args body))))
+
+(define lambda-rec (macro (name args body) (list Y (list lambda (list name) (list lambda args body)))))
+
 (define fresh
-  (macro (args body)
-	 (let ((expand (lambda (self args body)
-			 (cond ((not args) body)
-			       (t (list call/fresh
-					(list lambda (list (car args))
-					      (self self (cdr args) body))))))))
-	   (expand expand args body))))
+  (macro args
+	 ((Y (lambda (expand)
+	      (lambda (args body)
+		(cond ((not args) body)
+		      (t (list call/fresh
+			       (list lambda (list (car args))
+				     (expand (cdr args) body)))))))) . args)))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
