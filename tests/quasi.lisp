@@ -24,7 +24,7 @@
 		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
 
 ; Even more sugary
-(defmacro ` (l)
+(defmacro ` l
   ((Y (lambda (rec)
 	(lambda (l)
 	  (cond ((not l) ())
@@ -36,4 +36,4 @@
 (define a 1)
 (define b '(2 3))
 (quasi ((unquote (- 2 1)) (splice b) 4)) ; (1 2 3 4)
-(` (, (- 2 1) ,@ b 4)) ; (1 2 3 4)
+(` , (- 2 1) ,@ b 4) ; (1 2 3 4)

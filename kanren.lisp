@@ -19,7 +19,7 @@
   (cond ((not a) b)
 	(t (cons (car a) (append (cdr a) b)))))
 
-(defmacro ` (l)
+(defmacro ` l
   ((Y (lambda (rec)
 	(lambda (l)
 	  (cond ((not l) ())
@@ -265,7 +265,7 @@
   ((Y (lambda (expand)
 	(lambda (args body)
 	  (cond ((not args) body)
-		(t (` (call/fresh (lambda , args , (expand (cdr args body))))))))))
+		(t (` call/fresh (lambda , args , (expand (cdr args body)))))))))
    args body))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
