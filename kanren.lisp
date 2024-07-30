@@ -67,9 +67,9 @@
 	  (t ()))))
 
 (define ext-s
-  (lambda (v x s)
-    (cond ((occurs? v x) ())
-	  (t (cons (cons v x) s)))))
+  (lambda (x v s)
+    (cond ((occurs? x v s) ())
+	  (t (cons (cons x v) s)))))
 
 ;(ext-s 3 'dog '((2 . cat) (1 . 2) (0 . 1)))
 
@@ -269,3 +269,5 @@
    args))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
+
+(` TODO: fix this - occurs? check seems broken: , (run 1 (fresh (x) (conj (== x 'cat) (== x 'dog)))))
