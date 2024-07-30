@@ -37,7 +37,7 @@ Here's a breakdown of this implementation's design, in general and relative to t
 
 Language-wise, one might argue that it's closer in spirit to a Scheme than to say, Common Lisp, for a variety of reasons.
 But really, it inherits features both syntactically and semantically from either one - admittedly, with little thought - so I use the term "Lisp" simply for generality's sake.
-In a nutshell, it's like if you took a basic Scheme, renamed everything to make it look more like CL, and compromised on the treatment of NIL.
+In a nutshell, it's like if you took a basic Scheme, renamed things to look more CL, and compromised in CL's favor on the treatment of NIL.
 
 Here's a more intensive breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (single namespace for both variables and functions)
@@ -46,8 +46,8 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no backquote-unquote (yet?)
 * The semantics of nil are somewhere between CL and Scheme:
-  * Like CL, `()` is the only "false" value, and `(not ())` is `t`.
-  * Like Scheme, `nil` is not a special symbol, and `(car/cdr ())` is an error.
+  * Like CL, `()` is the only "false" value, `(not ())` is `t`, and `(car/cdr ())` is `().
+  * Like Scheme, `nil` is not recognized as a special symbol.
 * Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` ~= `ptr == NULL`)
   * Default names: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`

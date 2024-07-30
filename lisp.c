@@ -716,6 +716,8 @@ void *l_car(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
+	if (!car(args))
+		return NULL;
 	return atom(car(args)) ? ERROR : caar(args);
 }
 
@@ -724,6 +726,8 @@ void *l_cdr(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
+	if (!car(args))
+		return NULL;
 	return atom(car(args)) ? ERROR : cdar(args);
 }
 
