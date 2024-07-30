@@ -232,8 +232,6 @@
 ;					      (self self (cdr args) body))))))))
 ;	   (expand expand args body))))
 
-(define lambda-rec (macro (name args body) (list Y (list lambda (list name) (list lambda args body)))))
-
 (define fresh
   (macro args
 	 ((Y (lambda (expand)
