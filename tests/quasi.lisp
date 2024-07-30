@@ -1,4 +1,4 @@
-; Quasi-quote syntax replacer
+; Quasiquotation macro demo
 (define list (lambda args args))
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 

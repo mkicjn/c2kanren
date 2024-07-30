@@ -1,12 +1,33 @@
 ; Supporting non-Kanren definitions
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
-(define pair? (lambda (x) (not (atom x))))
 (define list (lambda args args))
-(define assoc
-  (lambda (k l)
-    (cond ((atom l) ())
-	  ((eq k (car (car l))) (car l))
-	  (t (assoc k (cdr l))))))
+
+(define defun (macro (name args body) (list define name (list lambda args body))))
+(define defmacro (macro (name args body) (list define name (list macro args body))))
+
+(defun cadr (x) (car (cdr x)))
+(defun caar (x) (car (car x)))
+(defun cadar (x) (cadr (car x)))
+
+(defun pair? (x) (not (atom x)))
+
+(defun assoc (k l)
+  (cond ((atom l) ())
+	((eq k (car (car l))) (car l))
+	(t (assoc k (cdr l)))))
+
+(defun append (a b)
+  (cond ((not a) b)
+	(t (cons (car a) (append (cdr a) b)))))
+
+(defmacro quasi (l)
+  ((Y (lambda (rec)
+	(lambda (l)
+	  (cond ((not l) ())
+		((atom l) (list quote l))
+		((eq 'splice (caar l)) (list append (cadar l) (rec (cdr l))))
+		((eq 'unquote (car l)) (cadr l))
+		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
 
 ;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
 
@@ -232,13 +253,21 @@
 ;					      (self self (cdr args) body))))))))
 ;	   (expand expand args body))))
 
-(define fresh
-  (macro args
-	 ((Y (lambda (expand)
-	      (lambda (args body)
-		(cond ((not args) body)
-		      (t (list call/fresh
-			       (list lambda (list (car args))
-				     (expand (cdr args) body)))))))) . args)))
+;(define fresh
+;  (macro args
+;	 ((Y (lambda (expand)
+;	      (lambda (args body)
+;		(cond ((not args) body)
+;		      (t (list call/fresh
+;			       (list lambda (list (car args))
+;				     (expand (cdr args) body)))))))) . args)))
+
+(defmacro fresh (args body)
+  ((Y (lambda (expand)
+	(lambda (args body)
+	  (cond ((not args) body)
+		(t (quasi
+		     (call/fresh (lambda (unquote args)
+				   (unquote (expand (cdr args body))))))))))) args body))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
