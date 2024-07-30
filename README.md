@@ -42,7 +42,7 @@ In a nutshell, it's like if you took a basic Scheme, renamed everything to make 
 Here's a more intensive breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (single namespace for both variables and functions)
 * Simple `define`s only (no `(define (f args) body)`; use `(define f (lambda args body))`)
-  * Note: `define` is the only "real" special form as `cond`, `let`, etc. and even `lambda` are actually primitives that can be treated as values
+  * Note: There are no "real" special forms - `cond`, `let`, etc. and even `define` and `lambda` are actually primitives that can be treated as values
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no backquote-unquote (yet?)
 * The semantics of nil are somewhere between CL and Scheme:

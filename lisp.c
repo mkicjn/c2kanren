@@ -67,12 +67,12 @@
 	X("\003and", l_and) \
 	X("\002or", l_or) \
 	X("\004type", l_type) \
+	X("\006define", l_define) \
 	FOREACH_ARITH_PRIM(X)
 
 // X macro: All built-in symbols (with or without a corresponding primitive)
 #define FOREACH_SYMVAR(X) \
 	X("\001t", l_t) \
-	X("\006define", l_define) \
 	X("\006symbol", l_symbol) \
 	X("\006number", l_number) \
 	X("\011primitive", l_primitive) \
@@ -102,6 +102,7 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define LAMBDA ((void *)4)      // used to distinguish closures from unevaluated lists
 #define MACRO ((void *)5)       // used to distinguish closures from unevaluated lists
 #define NUMBER ((void *)6)      // used for implementing numbers (see below)
+#define DEFINE ((void *)7)      // used to implement define as a primitive
 
 // How exactly to represent numeric values is difficult, since they must be distinguishable from pointers.
 // SectorLISP does not implement numbers, and tinylisp relies on NaN-boxing.
@@ -213,6 +214,12 @@ void print(void *x)
 {
 	if (!x) {
 		printf("()");
+	} else if (IN(x, cells) && (car(x) == DEFINE)) {
+		printf("{define ");
+		print(cadr(x));
+		printf(" as ");
+		print(caddr(x));
+		printf("}");
 	} else if (IN(x, cells) && (car(x) == NUMBER)) {
 		union l_num_u num = {.as_ptr = cdr(x)};
 		printf(NUM_FMT, num.as_num);
@@ -250,8 +257,10 @@ void print(void *x)
 	} else if (IN(x, prims)) {
 		char *s = prim_syms[(void **)x - (void **)prims];
 		printf("{primitive: %.*s}", *s, s + 1);
-	} else {
+	} else if (x == ERROR) {
 		printf("\033[31m{error}\033[m");
+	} else {
+		printf("\033[33m{sentinel: %p}\033[m", x);
 	}
 }
 
@@ -600,14 +609,13 @@ int main()
 	// Read-eval-print loop
 	for (;;) {
 		void *nil = NULL;
-		void *exp = read();
-		if (IN(exp, cells) && car(exp) == l_define_sym) {
+		// Evaluate expressions
+		void *res = eval(read(), NULL);
+		if (IN(res, cells) && car(res) == DEFINE) {
 			// Handle defines
-			if (IN(cadr(exp), syms))
-				defines = define(cadr(exp), eval(caddr(exp), NULL), defines);
+			defines = define(cadr(res), caddr(res), defines);
 		} else {
-			// Evaluate expressions
-			void *res = eval(exp, NULL);
+			// Print results
 			DEBUG(printf("\033[32m"));
 			print(res);
 			DEBUG(printf("\033[m"));
@@ -678,6 +686,19 @@ void *l_or(void *args, void **cont, void **envp)
 	for (; !res && IN(args, cells); args = cdr(args))
 		res = eval(car(args), *envp);
 	return res;
+}
+
+void *l_define(void *args, void **cont, void **envp)
+{
+	(void)cont; // no TCO
+	REQUIRED(args, 2);
+	// Defines are only legal at the toplevel
+	if (*envp != NULL)
+		return ERROR;
+	// Return a sentinel value triple to tell the toplevel to handle it
+	// Attempting to handle the definition here causes weird GC problems
+	// TODO: Try to resolve this in a neater way
+	return list3(DEFINE, car(args), eval(cadr(args), NULL));
 }
 
 // "Functions" - i.e., primitives which DO evaluate all their arguments
