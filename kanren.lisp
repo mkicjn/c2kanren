@@ -208,5 +208,27 @@
 ;(run 4 (fresh1 x (dogs x)))
 (run 4 (fresh1 x (disj (dogs x) (cats x))))
 
-; TODO: fresh - maybe reimagine call/fresh
 ; TODO: add reification to run
+
+;(define expand
+;  (lambda (args body)
+;    (cond ((not args) body)
+;	  (t (list 'call/fresh (list 'lambda (list (car args)) (expand (cdr args) body)))))))
+
+;(expand '(x y z) '(conj (== x 'cat) (== y 'dog) (== z 'turtle)))
+
+;(define fresh (macro (args body) (expand args body)))
+
+;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
+
+; TODO: Find a better way to define recursive macros
+(define fresh
+  (macro (args body)
+	 (let ((expand (lambda (self args body)
+			 (cond ((not args) body)
+			       (t (list call/fresh
+					(list lambda (list (car args))
+					      (self self (cdr args) body))))))))
+	   (expand expand args body))))
+
+(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))

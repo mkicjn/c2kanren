@@ -33,6 +33,7 @@ Here's a breakdown of this implementation's design, in general and relative to t
 * Copying GC with pointer offsetting for cells - much like SectorLISP (but upgraded to use forwarding pointers and apply to the environment) and much unlike tinylisp (which simply resets a free-pointer at the toplevel)
 * Special forms implemented as primitive functions - much like tinylisp (but without the array of structs) and much unlike SectorLISP (which seems to do the reverse by implementing all primitives as special forms)
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
+* Macros work like lambdas - exactly like tinylisp; can't remember if this similarity was intentional
 
 Language-wise, one might argue that it's closer in spirit to a Scheme than to say, Common Lisp, for a variety of reasons.
 But really, it inherits features both syntactically and semantically from either one - admittedly, with little thought - so I use the term "Lisp" simply for generality's sake.
