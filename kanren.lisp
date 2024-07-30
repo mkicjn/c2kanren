@@ -6,8 +6,7 @@
 (define defmacro (macro (name args body) (list define name (list macro args body))))
 
 (defun cadr (x) (car (cdr x)))
-(defun caar (x) (car (car x)))
-(defun cadar (x) (cadr (car x)))
+(defun cddr (x) (cdr (cdr x)))
 
 (defun pair? (x) (not (atom x)))
 
@@ -20,13 +19,13 @@
   (cond ((not a) b)
 	(t (cons (car a) (append (cdr a) b)))))
 
-(defmacro quasi (l)
+(defmacro ` (l)
   ((Y (lambda (rec)
 	(lambda (l)
 	  (cond ((not l) ())
 		((atom l) (list quote l))
-		((eq 'splice (caar l)) (list append (cadar l) (rec (cdr l))))
-		((eq 'unquote (car l)) (cadr l))
+		((eq ',@ (car l)) (list append (cadr l) (rec (cddr l))))
+		((eq ', (car l)) (list cons (cadr l) (rec (cddr l))))
 		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
 
 ;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
@@ -266,8 +265,7 @@
   ((Y (lambda (expand)
 	(lambda (args body)
 	  (cond ((not args) body)
-		(t (quasi
-		     (call/fresh (lambda (unquote args)
-				   (unquote (expand (cdr args body))))))))))) args body))
+		(t (` (call/fresh (lambda , args , (expand (cdr args body))))))))))
+   args body))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))

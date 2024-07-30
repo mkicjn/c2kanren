@@ -6,6 +6,7 @@
 (define defmacro (macro (name args body) (list define name (list macro args body))))
 
 (defun cadr (x) (car (cdr x)))
+(defun cddr (x) (cdr (cdr x)))
 (defun caar (x) (car (car x)))
 (defun cadar (x) (cadr (car x)))
 
@@ -22,6 +23,17 @@
 		((eq 'unquote (car l)) (cadr l))
 		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
 
+; Even more sugary
+(defmacro ` (l)
+  ((Y (lambda (rec)
+	(lambda (l)
+	  (cond ((not l) ())
+		((atom l) (list quote l))
+		((eq ',@ (car l)) (list append (cadr l) (rec (cddr l))))
+		((eq ', (car l)) (list cons (cadr l) (rec (cddr l))))
+		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
+
 (define a 1)
 (define b '(2 3))
 (quasi ((unquote (- 2 1)) (splice b) 4)) ; (1 2 3 4)
+(` (, (- 2 1) ,@ b 4)) ; (1 2 3 4)
