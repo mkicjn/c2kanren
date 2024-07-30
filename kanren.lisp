@@ -263,9 +263,9 @@
 
 (defmacro fresh (args body)
   ((Y (lambda (expand)
-	(lambda (args body)
+	(lambda (args)
 	  (cond ((not args) body)
-		(t (` call/fresh (lambda , args , (expand (cdr args body)))))))))
-   args body))
+		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
+   args))
 
 (run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
