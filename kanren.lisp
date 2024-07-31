@@ -268,6 +268,20 @@
 		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
    args))
 
-(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
+;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
 
-(` TODO: fix this - occurs? check seems broken: , (run 1 (fresh (x) (conj (== x 'cat) (== x 'dog)))))
+(defmacro conj+ exprs
+  ((Y (lambda (expand)
+	(lambda (exprs)
+	  (cond ((not (cddr exprs)) (` conj , (car exprs) , (cadr exprs)))
+		(t (` conj , (car exprs) , (expand (cdr exprs))))))))
+   exprs))
+
+(defmacro disj+ exprs
+  ((Y (lambda (expand)
+	(lambda (exprs)
+	  (cond ((not (cddr exprs)) (` disj , (car exprs) , (cadr exprs)))
+		(t (` disj , (car exprs) , (expand (cdr exprs))))))))
+   exprs))
+
+(run 1 (fresh (x y z) (conj+ (== x 'cat) (== x y) (== y z))))
