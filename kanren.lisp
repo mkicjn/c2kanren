@@ -1,6 +1,7 @@
 ; Supporting non-Kanren definitions
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 (define list (lambda args args))
+(define curry (lambda (f x) (lambda args (f x . args))))
 
 (define defun (macro (name args body) (list define name (list lambda args body))))
 (define defmacro (macro (name args body) (list define name (list macro args body))))
@@ -27,6 +28,10 @@
 		((eq ',@ (car l)) (list append (cadr l) (rec (cddr l))))
 		((eq ', (car l)) (list cons (cadr l) (rec (cddr l))))
 		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
+
+(defun map (f l)
+  (cond ((not l) ())
+	(t (cons (f (car l)) (map f (cdr l))))))
 
 ;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
 
@@ -58,11 +63,12 @@
 ;(walk 3 '((2 . cat) (1 . 2) (0 . 1)))
 
 (defun occurs? (x v s)
-  (cond ((var? v) (eq x v))
-	((pair? v)
-	 (or (occurs? x (walk (car v) s) s)
-	     (occurs? x (walk (cdr v) s) s)))
-	(t ())))
+  (let ((v (walk v s)))
+    (cond ((var? v) (eq x v))
+	  ((pair? v)
+	   (or (occurs? x (walk (car v) s) s)
+	       (occurs? x (walk (cdr v) s) s)))
+	  (t ()))))
 
 (defun ext-s (x v s)
   (cond ((occurs? x v s) ())
@@ -71,13 +77,14 @@
 ;(ext-s 3 'dog '((2 . cat) (1 . 2) (0 . 1)))
 
 (defun unify (a b s)
-  (cond ((eq a b) s)
-	((var? a) (ext-s a b s))
-	((var? b) (ext-s b a s))
-	((and (pair? a) (pair? b))
-	 (let ((s1 (unify (walk (car a) s) (walk (car b) s) s)))
-	   (and s1 (unify (walk (cdr a) s1) (walk (cdr b) s1) s1))))
-	(t ())))
+  (let ((a (walk a s)) (b (walk b s)))
+    (cond ((eq a b) s)
+	  ((var? a) (ext-s a b s))
+	  ((var? b) (ext-s b a s))
+	  ((and (pair? a) (pair? b))
+	   (let ((s1 (unify (car a) (car b) s)))
+	     (and s1 (unify (cdr a) (cdr b) s1))))
+	  (t ()))))
 
 ;(unify 1 0 '((2 . cat) (1 . 2) (0 . 1)))
 ;(unify 3 'dog '((2 . cat) (1 . 2) (0 . 1)))
@@ -278,3 +285,26 @@
    exprs))
 
 (run 1 (fresh (x y z) (conj+ (== x 'cat) (== x y) (== y z))))
+
+(defun reify (v s/c)
+  (let ((s (car s/c)) (c (cdr s/c)) (v (walk v s)))
+    (cond ((atom v) v)
+	  (t (cons (reify (car v) s/c) (reify (cdr v) s/c))))))
+
+;(reify '(0 1 . 2) '(((0 1 2) (1 . a) (2 . b)) . 3))
+
+;(reify 2 (car (run 1 (fresh (x y z) (conj+ (== x 'cat) (== x y) (== y z))))))
+
+;(reify 2 (car (run 1 (fresh (x y z) (conj+ (== x (cons y z)) (== y 'a) (== z 'b))))))
+;(reify 1 (car (run 1 (fresh (x y z) (conj+ (== x (cons y z)) (== y 'a) (== z 'b))))))
+;(reify 0 (car (run 1 (fresh (x y z) (conj+ (== x (cons y z)) (== y 'a) (== z 'b))))))
+
+(defun rrun (n g) (map (curry reify 0) (run n g)))
+
+
+(define As (relation (x) (disj (== x 'A) (As x))))
+(define Bs (relation (x) (disj (== x 'B) (Bs x))))
+(define As-or-Bs (relation (x) (disj (As x) (Bs x))))
+(define A-or-B (relation (x) (disj (== x 'A) (== x 'B))))
+(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
+(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (A-or-B x) (A-or-B y) (A-or-B z))))
