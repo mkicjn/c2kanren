@@ -5,7 +5,7 @@ This is a small project inspired by a number of sources, but it does what it say
 
 The main files:
 * `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection (basically done)
-* `kanren.lisp` - a port of uKanren to that Lisp (basically done), eventually to include useful macros and reification (barely started)
+* `kanren.lisp` - a port of uKanren to that Lisp (basically done), eventually to include useful macros and reification (mostly done?)
 
 ## The Lisp
 

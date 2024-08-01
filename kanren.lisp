@@ -1,4 +1,4 @@
-; Supporting non-Kanren definitions
+;; Supporting non-Kanren definitions
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 (define list (lambda args args))
 (define curry (lambda (f x) (lambda args (f x . args))))
@@ -35,20 +35,21 @@
 
 ;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;	uKanren
-;
-; Commented-out code represents either tests or intermediate definitions that were upgraded later
-;
-; The general flow of these definitions roughly follows this talk by uKanren creators Daniel Friedman and Jason Hemann:
-; https://www.youtube.com/watch?v=0FwIwewHC3o
-;
-; Other interesting or excellent resources include:
-; * The original uKanren paper, which helped serve as a reference / view into a similar but slightly different approach:
-;     http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
-; * "Unifying the Technical Interview", a fascinating article that drove the insipiration for this project and served as another reference:
-;     https://aphyr.com/posts/354-unifying-the-technical-interview
-;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;	uKanren
+;;
+;; Commented-out code represents either tests or intermediate definitions that were upgraded later
+;; (Actual annotative comments use two semicolons so the rest can be culled via regex)
+;;
+;; The general flow of these definitions roughly follows this talk by uKanren creators Daniel Friedman and Jason Hemann:
+;; https://www.youtube.com/watch?v=0FwIwewHC3o
+;;
+;; Other interesting or excellent resources include:
+;; * The original uKanren paper, which helped serve as a reference / view into a similar but slightly different approach:
+;;     http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+;; * "Unifying the Technical Interview", a fascinating article that drove the insipiration for this project and served as another reference:
+;;     https://aphyr.com/posts/354-unifying-the-technical-interview
+;;
 
 (define var (lambda (x) x))
 (define var?  (lambda (x) (eq (type x) 'number)))
@@ -200,8 +201,8 @@
 
 ; TODO: appendo
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Some macros to make things a little easier
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Some macros to make things a little easier
 
 ;(define relation
 ;  (macro (args body)
@@ -229,8 +230,6 @@
 ;(run 4 (fresh1 x (dogs x)))
 (run 4 (fresh1 x (disj (dogs x) (cats x))))
 
-; TODO: add reification to run
-
 ;(define expand
 ;  (lambda (args body)
 ;    (cond ((not args) body)
@@ -242,7 +241,7 @@
 
 ;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
 
-; TODO: Find a better way to define recursive macros
+;; TODO: Find a better way to define recursive macros
 ;(define fresh
 ;  (macro (args body)
 ;	 (let ((expand (lambda (self args body)
@@ -301,12 +300,11 @@
 
 (defun rrun (n g) (map (curry reify 0) (run n g)))
 
+;; Testing fairness of enumeration
 (define As (relation (x) (disj (== x 'A) (As x))))
 (define Bs (relation (x) (disj (== x 'B) (Bs x))))
 (define As-or-Bs (relation (x) (disj (As x) (Bs x))))
-(define A-or-B (relation (x) (disj (== x 'A) (== x 'B))))
 (rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
-(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (A-or-B x) (A-or-B y) (A-or-B z))))
 
 (define appendo
   (relation (as bs as-bs)
@@ -316,12 +314,32 @@
 				(== as-bs (cons a s-bs))
 				(appendo s bs s-bs))))))
 
-(rrun 1 (fresh (as-bs as bs)
-	      (conj+ (== as '(a b c))
-		     (== bs '(d e f))
-		     (appendo as bs as-bs))))
+;(rrun 1 (fresh (as-bs as bs)
+;	       (conj+ (== as '(a b c))
+;		      (== bs '(d e f))
+;		      (appendo as bs as-bs))))
+;
+;(rrun 7 (fresh (res as bs as-bs)
+;	       (conj+ (== as-bs '(a b c d e f))
+;		      (== res (list as bs))
+;		      (appendo as bs as-bs))))
 
-(rrun 7 (fresh (res as bs as-bs)
-	      (conj+ (== as-bs '(a b c d e f))
-		     (== res (list as bs))
-		     (appendo as bs as-bs))))
+(defun take* (stream)
+  (cond ((not (car stream)) ())
+	(t (cons (car stream) (take* (pull (cdr stream)))))))
+
+(defun run* (g) (take* (pull (g init-s/c))))
+
+(defun rrun* (g) (map (curry reify 0) (run* g)))
+
+(rrun* (fresh (as-bs as bs)
+	       (conj+ (== as '(a b c))
+		      (== bs '(d e f))
+		      (appendo as bs as-bs))))
+
+(rrun* (fresh (res as bs as-bs)
+	       (conj+ (== as-bs '(a b c d e f))
+		      (== res (list as bs))
+		      (appendo as bs as-bs))))
+
+;; TODO: conde and other miniKanren primitives
