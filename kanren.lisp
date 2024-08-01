@@ -25,8 +25,9 @@
 	(lambda (l)
 	  (cond ((not l) ())
 		((atom l) (list quote l))
-		((eq ',@ (car l)) (list append (cadr l) (rec (cddr l))))
+		((eq ',. (car l)) (cadr l))
 		((eq ', (car l)) (list cons (cadr l) (rec (cddr l))))
+		((eq ',@ (car l)) (list append (cadr l) (rec (cddr l))))
 		(t (list cons (rec (car l)) (rec (cdr l)))))))) l))
 
 (defun map (f l)
