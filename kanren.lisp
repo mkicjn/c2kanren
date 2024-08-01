@@ -301,10 +301,27 @@
 
 (defun rrun (n g) (map (curry reify 0) (run n g)))
 
-
 (define As (relation (x) (disj (== x 'A) (As x))))
 (define Bs (relation (x) (disj (== x 'B) (Bs x))))
 (define As-or-Bs (relation (x) (disj (As x) (Bs x))))
 (define A-or-B (relation (x) (disj (== x 'A) (== x 'B))))
 (rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
 (rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (A-or-B x) (A-or-B y) (A-or-B z))))
+
+(define appendo
+  (relation (as bs as-bs)
+	    (disj (conj (== as ()) (== bs as-bs))
+		  (fresh (a s s-bs)
+			 (conj+ (== as (cons a s))
+				(== as-bs (cons a s-bs))
+				(appendo s bs s-bs))))))
+
+(rrun 1 (fresh (as-bs as bs)
+	      (conj+ (== as '(a b c))
+		     (== bs '(d e f))
+		     (appendo as bs as-bs))))
+
+(rrun 7 (fresh (res as bs as-bs)
+	      (conj+ (== as-bs '(a b c d e f))
+		     (== res (list as bs))
+		     (appendo as bs as-bs))))
