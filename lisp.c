@@ -947,7 +947,7 @@ void *name(void *args, void **cont, void **envp) \
 			return ERROR; \
 		/* If comparison fails, return false */ \
 		union l_num_u n = {.as_ptr = cdr(arg)}; \
-		if (!(n.as_num op cmp.as_num)) \
+		if (!(cmp.as_num op n.as_num)) \
 			return NULL; \
 		/* Continue comparison from this argument */ \
 		cmp.as_num = n.as_num; \

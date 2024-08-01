@@ -33,7 +33,20 @@
   (cond ((not l) ())
 	(t (cons (f (car l)) (map f (cdr l))))))
 
-;(assoc 0 '((2 . cat) (1 . 2) (0 . 1)))
+(define length
+  (let ((acc 0))
+    (lambda (l acc)
+      (cond ((not l) acc)
+	    (t (length (cdr l) (+ acc 1)))))))
+
+(define iota
+  (let ((i 0))
+    (lambda (lim i)
+      (cond ((>= i lim) ())
+	    (t (cons i (iota lim (+ i 1))))))))
+
+(defun zip (a b)
+  (and a b (cons (cons (car a) (car b)) (zip (cdr a) (cdr b)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;	uKanren
@@ -179,9 +192,9 @@
   (cond ((promise? stream) (pull (force stream)))
 	(t stream)))
 
-(defun take (n stream)
-  (cond ((= n 1) (list (car stream)))
-	(t (cons (car stream) (take (- n 1) (pull (cdr stream)))))))
+;(defun take (n stream)
+;  (cond ((= n 1) (list (car stream)))
+;	(t (cons (car stream) (take (- n 1) (pull (cdr stream)))))))
 
 ;(take 4 (pull ((call/fresh (lambda (x) (turtles x))) init-s/c)))
 
@@ -214,8 +227,8 @@
      (lambda (s/c)
        (delay (, body s/c)))))
 
-(define dogs (relation (x) (disj (== x 'dog) (dogs x))))
-(define cats (relation (x) (disj (== x 'cat) (cats x))))
+;(define dogs (relation (x) (disj (== x 'dog) (dogs x))))
+;(define cats (relation (x) (disj (== x 'cat) (cats x))))
 
 ;(define fresh1
 ;  (macro (arg body)
@@ -225,10 +238,10 @@
 
 ;(take 4 (pull ((fresh1 x (dogs x)) init-s/c)))
 
-(defun run (n g) (take n (pull (g init-s/c))))
+;(defun run (n g) (take n (pull (g init-s/c))))
 
 ;(run 4 (fresh1 x (dogs x)))
-(run 4 (fresh1 x (disj (dogs x) (cats x))))
+;(run 4 (fresh1 x (disj (dogs x) (cats x))))
 
 ;(define expand
 ;  (lambda (args body)
@@ -283,7 +296,7 @@
 		(t (` disj , (car exprs) , (expand (cdr exprs))))))))
    exprs))
 
-(run 1 (fresh (x y z) (conj+ (== x 'cat) (== x y) (== y z))))
+;(run 1 (fresh (x y z) (conj+ (== x 'cat) (== x y) (== y z))))
 
 (defun reify (v s/c)
   (let ((s (car s/c)) (c (cdr s/c)) (v (walk v s)))
@@ -298,13 +311,13 @@
 ;(reify 1 (car (run 1 (fresh (x y z) (conj+ (== x (cons y z)) (== y 'a) (== z 'b))))))
 ;(reify 0 (car (run 1 (fresh (x y z) (conj+ (== x (cons y z)) (== y 'a) (== z 'b))))))
 
-(defun rrun (n g) (map (curry reify 0) (run n g)))
+;(defun rrun (n g) (map (curry reify 0) (run n g)))
 
 ;; Testing fairness of enumeration
-(define As (relation (x) (disj (== x 'A) (As x))))
-(define Bs (relation (x) (disj (== x 'B) (Bs x))))
-(define As-or-Bs (relation (x) (disj (As x) (Bs x))))
-(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
+;(define As (relation (x) (disj (== x 'A) (As x))))
+;(define Bs (relation (x) (disj (== x 'B) (Bs x))))
+;(define As-or-Bs (relation (x) (disj (As x) (Bs x))))
+;(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
 
 (define appendo
   (relation (as bs as-bs)
@@ -328,18 +341,33 @@
   (cond ((not (car stream)) ())
 	(t (cons (car stream) (take* (pull (cdr stream)))))))
 
-(defun run* (g) (take* (pull (g init-s/c))))
+(defun take (n stream)
+  (cond ((not (car stream)) ())
+	((= n 1) (list (car stream)))
+	(t (cons (car stream) (take (- n 1) (pull (cdr stream)))))))
 
-(defun rrun* (g) (map (curry reify 0) (run* g)))
+;(defun run* (g) (take* (pull (g init-s/c))))
 
-(rrun* (fresh (as-bs as bs)
-	       (conj+ (== as '(a b c))
-		      (== bs '(d e f))
-		      (appendo as bs as-bs))))
+;(defun rrun* (g) (map (curry reify 0) (run* g)))
 
-(rrun* (fresh (res as bs as-bs)
-	       (conj+ (== as-bs '(a b c d e f))
-		      (== res (list as bs))
-		      (appendo as bs as-bs))))
+;(run* (fresh (as-bs as bs)
+;	       (conj+ (== as '(a b c))
+;		      (== bs '(d e f))
+;		      (appendo as bs as-bs))))
+
+;(run* (fresh (res as bs as-bs)
+;	       (conj+ (== as-bs '(a b c d e f))
+;		      (== res (list as bs))
+;		      (appendo as bs as-bs))))
+
+(defmacro run* (vs g)
+  (` map (curry reify (iota , (length vs)))
+     (take* (pull ((fresh , vs , g) init-s/c)))))
+
+(defmacro run (n vs g)
+  (` map (curry reify (iota , (length vs)))
+     (take , n (pull ((fresh , vs , g) init-s/c)))))
+
+(run* (a b) (appendo a b '(a b c d e f g)))
 
 ;; TODO: conde and other miniKanren primitives
