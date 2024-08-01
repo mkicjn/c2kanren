@@ -286,14 +286,14 @@
 (defmacro conj+ exprs
   ((Y (lambda (expand)
 	(lambda (exprs)
-	  (cond ((not (cddr exprs)) (` conj , (car exprs) , (cadr exprs)))
+	  (cond ((not (cdr exprs)) (car exprs))
 		(t (` conj , (car exprs) , (expand (cdr exprs))))))))
    exprs))
 
 (defmacro disj+ exprs
   ((Y (lambda (expand)
 	(lambda (exprs)
-	  (cond ((not (cddr exprs)) (` disj , (car exprs) , (cadr exprs)))
+	  (cond ((not (cdr exprs)) (car exprs))
 		(t (` disj , (car exprs) , (expand (cdr exprs))))))))
    exprs))
 
@@ -320,13 +320,13 @@
 ;(define As-or-Bs (relation (x) (disj (As x) (Bs x))))
 ;(rrun 20 (fresh (res x y z) (conj+ (== res (` , x , y , z)) (As-or-Bs x) (As-or-Bs y) (As-or-Bs z))))
 
-(define appendo
-  (relation (as bs as-bs)
-	    (disj (conj (== as ()) (== bs as-bs))
-		  (fresh (a s s-bs)
-			 (conj+ (== as (cons a s))
-				(== as-bs (cons a s-bs))
-				(appendo s bs s-bs))))))
+;(define appendo
+;  (relation (as bs as-bs)
+;	    (disj (conj (== as ()) (== bs as-bs))
+;		  (fresh (a s s-bs)
+;			 (conj+ (== as (cons a s))
+;				(== as-bs (cons a s-bs))
+;				(appendo s bs s-bs))))))
 
 ;(rrun 1 (fresh (as-bs as bs)
 ;	       (conj+ (== as '(a b c))
@@ -369,6 +369,32 @@
   (` map (curry reify (iota , (length vs)))
      (take , n (pull ((fresh , vs , g) init-s/c)))))
 
-(run* (a b) (appendo a b '(a b c d e f g)))
+;(run* (a b) (appendo a b '(a b c d e f g)))
+
+(defmacro conde ls
+  (let ((do-conj (lambda (l) (` conj+ ,. l)))
+	(do-disj (lambda (l) (` disj+ ,. l))))
+    (do-disj (map do-conj ls))))
+
+(defmacro fresh (args . body)
+  ((Y (lambda (expand)
+	(lambda (args)
+	  (cond ((not args) (` conj+ ,. body))
+		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
+   args))
+
+;(fresh (a b) (== a 'a) (== b 'b))
+
+(define appendo
+  (relation (as bs as-bs)
+	    (conde ((== as ()) (== bs as-bs))
+		   ((fresh (a s s-bs)
+			   (== as (cons a s))
+			   (== as-bs (cons a s-bs))
+			   (appendo s bs s-bs))))))
+
+appendo
+
+(run* (a b) (appendo a b '(A B C D E F G)))
 
 ;; TODO: conde and other miniKanren primitives
