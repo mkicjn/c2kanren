@@ -35,9 +35,10 @@ Here's a breakdown of this implementation's design, in general and relative to t
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
 * Macros work like lambdas - exactly like tinylisp; can't remember if this similarity was intentional
 
-Language-wise, one might argue that it's closer in spirit to a Scheme than to say, Common Lisp, for a variety of reasons.
-But really, it inherits features both syntactically and semantically from either one - admittedly, with little thought - so I use the term "Lisp" simply for generality's sake.
-In a nutshell, it's like if you took a basic Scheme, renamed things to look more CL, and compromised in CL's favor on the treatment of NIL.
+Language-wise, it's arguably closer in spirit to Scheme than to say, Common Lisp, for a variety of reasons.
+(Hence why .gitattributes overrides the language to Scheme - have to pick something, right?)
+However, it does inherit some features both syntactically and semantically from CL, so I use the term "Lisp" simply for generality's sake.
+In a nutshell, the implementation here is as if you took a basic Scheme, renamed things to look more like CL, and compromised in CL's favor on the treatment of NIL.
 
 Here's a more intensive breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (single namespace for both variables and functions)
