@@ -192,16 +192,6 @@
      (lambda (s/c)
        (delay (, body s/c)))))
 
-(defmacro fresh1 (arg body)
-  (` call/fresh (lambda (, arg) , body)))
-
-(defmacro fresh (args body)
-  ((Y (lambda (expand)
-	(lambda (args)
-	  (cond ((not args) body)
-		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
-   args))
-
 (defmacro conj+ exprs
   ((Y (lambda (expand)
 	(lambda (exprs)
@@ -221,6 +211,15 @@
 	(do-disj (lambda (l) (` disj+ ,. l))))
     (do-disj (map do-conj ls))))
 
+(defmacro fresh1 (arg body)
+  (` call/fresh (lambda (, arg) , body)))
+
+(defmacro fresh (args . body)
+  ((Y (lambda (expand)
+	(lambda (args)
+	  (cond ((not args) (` conj+ ,. body))
+		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
+   args))
 
 ;; Obtaining results from a stream
 
