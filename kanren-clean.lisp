@@ -162,13 +162,15 @@
 ; A "promise" is a lambda function that should be called to get more s/c pairs
 (define promise? (lambda (x) (eq (type x) 'lambda)))
 
+; TODO: Explain streams in more detail
+
 ; `mplus` combines two streams for disj
 (defun mplus (stream1 stream2)
   (cond
     ; If stream1 is empty, return stream2
     ((not stream1) stream2)
     ; If stream1 is a promise, return a promise which gets the next s/c from stream1 but continues from stream2
-    ((promise? stream1) (delay (mplus stream2 (force stream1))))
+    ((promise? stream1) (mplus stream2 (force stream1)))
     ; Otherwise, do a simple list append
     (t (cons (car stream1) (mplus (cdr stream1) stream2)))))
 
@@ -178,7 +180,7 @@
     ; If the stream is empty, that's all
     ((not stream) ())
     ; If the stream is a promise, return a promise recursing on the next stream value
-    ((promise? stream) (delay (bind goal (force stream))))
+    ((promise? stream) (bind goal (force stream)))
     ; Otherwise, combine the streams formed by calling goal on the first result and recursing over the rest
     (t (mplus (goal (car stream)) (bind goal (cdr stream))))))
 
@@ -192,19 +194,15 @@
      (lambda (s/c)
        (delay (, body s/c)))))
 
+(defun decons (f l)
+  (cond ((not l) ())
+	(t (f (car l) (decons f (cdr l))))))
+
 (defmacro conj+ exprs
-  ((Y (lambda (expand)
-	(lambda (exprs)
-	  (cond ((not (cdr exprs)) (car exprs))
-		(t (` conj , (car exprs) , (expand (cdr exprs))))))))
-   exprs))
+  (decons (lambda (a d) (or (and d (` conj , a , d)) a)) exprs))
 
 (defmacro disj+ exprs
-  ((Y (lambda (expand)
-	(lambda (exprs)
-	  (cond ((not (cdr exprs)) (car exprs))
-		(t (` disj , (car exprs) , (expand (cdr exprs))))))))
-   exprs))
+  (decons (lambda (a d) (or (and d (` disj , a , d)) a)) exprs))
 
 (defmacro conde ls
   (let ((do-conj (lambda (l) (` conj+ ,. l)))
@@ -215,11 +213,7 @@
   (` call/fresh (lambda (, arg) , body)))
 
 (defmacro fresh (args . body)
-  ((Y (lambda (expand)
-	(lambda (args)
-	  (cond ((not args) (` conj+ ,. body))
-		(t (` call/fresh (lambda , args , (expand (cdr args)))))))))
-   args))
+  (decons (lambda (a d) (` fresh1 , a , (or d (` conj+ ,. body)))) args))
 
 ;; Obtaining results from a stream
 
@@ -269,5 +263,5 @@
 (run* (a b) (appendo a b '(A B C D E F G)))
 
 ;; TODO: Finish adding comments
-;; TODO: Is it worth combining the commented versions in with the old version to explain the development process?
+;; TODO: Is it worth combining the commented versions in with the old version to illustrate the development over time?
 ;; TODO: Go further - attributed variables? evalo??
