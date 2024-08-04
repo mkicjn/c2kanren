@@ -217,18 +217,16 @@
 
 ;; Obtaining results from a stream
 
-(defun pull (stream)
-  (cond ((promise? stream) (pull (force stream)))
-	(t stream)))
-
 (defun take* (stream)
-  (cond ((not (car stream)) ())
-	(t (cons (car stream) (take* (pull (cdr stream)))))))
+  (cond ((promise? stream) (take* (force stream)))
+	((atom stream) stream)
+	(t (cons (car stream) (take* (cdr stream))))))
 
 (defun take (n stream)
-  (cond ((not (car stream)) ())
-	((= n 1) (list (car stream)))
-	(t (cons (car stream) (take (- n 1) (pull (cdr stream)))))))
+  (cond ((= n 0) ())
+	((promise? stream) (take n (force stream)))
+	((atom stream) stream)
+	(t (cons (car stream) (take (- n 1) (cdr stream))))))
 
 
 ;; Reification
@@ -243,11 +241,11 @@
 
 (defmacro run* (vs g)
   (` map (curry reify (iota , (length vs)))
-     (take* (pull ((fresh , vs , g) init-s/c)))))
+     (take* ((fresh , vs , g) init-s/c))))
 
 (defmacro run (n vs g)
   (` map (curry reify (iota , (length vs)))
-     (take , n (pull ((fresh , vs , g) init-s/c)))))
+     (take , n ((fresh , vs , g) init-s/c))))
 
 
 ;; appendo relation and test
