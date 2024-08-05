@@ -197,7 +197,6 @@
   (cond ((not args) ())
 	(t (cons (logic-var (car args)) (reify-targets (cdr args))))))
 
-; `run*` - execute a goal with multiple variables from scratch and reify all results
 ; `run*` - execute a goal `body` with multiple variables `args` from scratch and reify the arguments from every result
 (defmacro run* (args body)
   (` let ((targets (reify-targets (quote , args))))
