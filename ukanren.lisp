@@ -57,7 +57,7 @@
 
 ; A logic variable is a pair where the head is the symbol `_` and the tail is anything else
 (defun logic-var (x) (cons '_ x))
-(defun logic-var? (x) (eq (car x) '_))
+(defun logic-var? (x) (and (pair? x) (eq (car x) '_)))
 
 ; `walk` - gets the binding of a variable `v` by following a chain of substitutions `s`
 (defun walk (v s)

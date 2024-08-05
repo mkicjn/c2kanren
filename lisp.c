@@ -581,6 +581,12 @@ void *eval(void *x, void *env)
 	DEBUG(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
 	DEBUG(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf(" (%.3fms)\n", ms);)
 	DEBUG(level--;)
+	
+	if (ret == ERROR) {
+		printf("\033[33mWarning: error evaluating ");
+		print(x);
+		printf("\033[m\n");
+	}
 
 	gc(&ret, &env); // Collect garbage, keeping the return value
 	pre_eval = old_pre_eval;
