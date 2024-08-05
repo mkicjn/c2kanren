@@ -170,7 +170,7 @@
     ; If stream1 is empty, return stream2
     ((not stream1) stream2)
     ; If stream1 is a promise, return a promise which gets the next s/c from stream1 but continues from stream2
-    ((promise? stream1) (mplus stream2 (force stream1)))
+    ((promise? stream1) (delay (mplus stream2 (force stream1))))
     ; Otherwise, do a simple list append
     (t (cons (car stream1) (mplus (cdr stream1) stream2)))))
 
@@ -180,7 +180,7 @@
     ; If the stream is empty, that's all
     ((not stream) ())
     ; If the stream is a promise, return a promise recursing on the next stream value
-    ((promise? stream) (bind goal (force stream)))
+    ((promise? stream) (delay (bind goal (force stream))))
     ; Otherwise, combine the streams formed by calling goal on the first result and recursing over the rest
     (t (mplus (goal (car stream)) (bind goal (cdr stream))))))
 
