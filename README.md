@@ -1,11 +1,11 @@
 # c2kanren
-**Creating a simple Lisp interpreter in C and porting uKanren to it**
+**A simple Lisp interpreter with full TCO and GC, from scratch, running microKanren**
 
 This is a small project inspired by a number of sources, but it does what it says on the tin.
 
 The main files:
 * `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection
-* `ukanren.lisp` - a port of uKanren to that Lisp, with useful macros and reification
+* `ukanren.lisp` - a port of microKanren to that Lisp, with useful macros and reification
 
 ## The Lisp
 
@@ -58,18 +58,17 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 
 ## The Kanren
 
-The uKanren port is patterned mostly after a talk by the creators of uKanren, using the original paper as a reference occasionally.
+The microKanren port is patterned mostly after a talk by its creators, and also using the original paper as a reference occasionally.
 The original work that followed that talk a little more closely is in `ukanren-old.lisp`, and has tons of code commented out where things were being tested and updated.
 I figured it might be useful to keep that old body of code around as a reference, but the other two versions are probably much better to read and use.
-
-The code in `ukanren-annotated.lisp` is a cleaned up and _very, very heavily_ commented version of `ukanren-old.lisp` to help decipher some of the complexity.
-At the end of the day, that version still is very close to the uKanren described in the aforementioned talk, since it uses numbers as logic variables.
+The code in `ukanren-annotated.lisp` is a cleaned up and _very, very heavily_ commented version of `ukanren-old.lisp` originally produced to help decipher some of the complexity.
 
 Meanwhile, the code in `ukanren.lisp` is the latest iteration, which uses no numeric types in its implementation.
 That means no more numbers as variables, and no more threading a counter through with all the substitutions.
 Instead, variables are formed by cons pairs to ensure uniqueness, and as such, only the pointer comparison operator `eq` is used to compare them.
+
 This was originally so that the interpreter can be pared down and have math support removed, if desired.
-Personally, though, I think its main value is in making the implementation easier to understand, as it's another moving part removed - one which was initially rather confusing to me, as well.
+Personally, though, I think it just makes the implementation easier to understand, as it's another moving part removed - one which was initially rather confusing to me, as well.
 It also provides some additional flexibility, since numbers are no longer assumed to be variables, and variables can carry arbitrary data with them in their `cdr`.
 Logic variables are identified by being a list and having an underscore symbol `_` at the head, but the rest of the list is never inspected.
 The usefulness of this is debatable, although it is currently being used to identify variables from `run`(`*`) for when they appear in a reified result.
