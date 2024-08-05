@@ -339,11 +339,11 @@
 ;		      (appendo as bs as-bs))))
 
 (defun take* (stream)
-  (cond ((not (car stream)) ())
+  (cond ((not stream) ())
 	(t (cons (car stream) (take* (pull (cdr stream)))))))
 
 (defun take (n stream)
-  (cond ((not (car stream)) ())
+  (cond ((not stream) ())
 	((= n 1) (list (car stream)))
 	(t (cons (car stream) (take (- n 1) (pull (cdr stream)))))))
 
