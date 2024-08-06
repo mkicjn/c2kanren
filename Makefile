@@ -3,6 +3,8 @@ LDFLAGS=-lm
 
 ALL=a.out
 
+all: $(ALL)
+
 a.out: lisp.c
 	$(CC) $(CFLAGS) $< -o $@
 
