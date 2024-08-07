@@ -26,7 +26,13 @@
 
 (define apply
   (lambda (f args env)
-    (meta-eval (car (cdr f)) (pairlis (car f) (evlis args env) (cdr (cdr f))))))
+    (cond ((eq (car (car f)) 'lambda)
+	   (meta-eval (car (cdr (cdr (car f))))
+		      (pairlis (car (cdr (car f))) (evlis args env) (cdr f))))
+	  ((eq (car (car f)) 'label)
+	   (apply (cons (car (cdr (cdr (car f))))
+			(cons (cons (car (cdr (car f))) f) (cdr f)))
+		  args env)))))
 
 (define meta-eval
   (lambda (expr env)
@@ -41,7 +47,10 @@
 				   (meta-eval (car (cdr (cdr expr))) env)))
 	  ((eq 'cons (car expr)) (cons (meta-eval (car (cdr expr)) env)
 				       (meta-eval (car (cdr (cdr expr))) env)))
-	  ((eq '\ (car expr)) (cons (car (cdr expr)) (cons (car (cdr (cdr expr))) env)))
+	  ((eq 'lambda (car expr)) (cons expr env))
+	  ((eq 'label (car expr)) (cons expr env))
 	  (t (apply (meta-eval (car expr) env) (cdr expr) env)))))
 
-(meta-eval '((\ (x) (cons x b)) (cons 0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
+(meta-eval '((lambda (x) (cons x b)) (cons 0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
+
+(meta-eval '((label f (lambda () (f)))) '((a . 1))) ; infinite recursion
