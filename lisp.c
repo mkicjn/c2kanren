@@ -455,7 +455,7 @@ void *define(void *k, void *v, void *env)
 
 // The implementation of TCO here aims to avoid deviating too heavily from the original interpreter structure
 // The basic idea here is to:
-// - Add a new eval function that relies on an infinite loop to step through the evaluation
+// - Add a new eval function that relies on an infinite loop (a trampoline) to step through the evaluation
 // - Modify the old interpreter functions to return an expression to continue from instead of calling eval, where possible
 // The identifiers cont, envp, and INCOMPLETE signal where these modifications happened.
 

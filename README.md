@@ -25,9 +25,8 @@ Here's a breakdown of this implementation's design, in general and relative to t
 * Types distinguished internally by membership in static array space - unlike tinylisp (which uses NaN boxing) or SectorLISP (which uses comparison to a redefined NIL)
   * Non-symbol atoms represented by a list/pair with a sentinel value to take advantage of GC - unlike either (?)
 * Interpreter structured like McCarthy's meta-circular eval - like either SectorLISP or tinylisp (before TCO)
-  * TCO implemented with meta-circular eval structure mostly intact - unlike either tinylisp (which folds a lot of code into eval) or SectorLISP (which lacks TCO)
+  * TCO implemented via a trampoline while keeping the interpreter structure mostly intact - unlike either tinylisp (which folds a lot of code into eval) or SectorLISP (which lacks TCO)
 * Copying GC with pointer offsetting for cells - much like SectorLISP (but upgraded to use forwarding pointers and apply to the environment) and much unlike tinylisp (which simply resets a free-pointer at the toplevel)
-* Special forms implemented as primitive functions - much like tinylisp (but without the array of structs) and much unlike SectorLISP (which seems to do the reverse by implementing all primitives as special forms)
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
 * Macros work like lambdas - exactly like tinylisp; can't remember if this similarity was intentional
 
@@ -40,7 +39,6 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Lisp-1 namespacing (single namespace for both variables and functions)
 * Simple `define`s only by default (no `(define (f args) body)`; use `(define f (lambda args body))`)
   * More ergonomic definitions are possible with macro definitions
-  * Note: There are no "real" special forms - `cond`, `let`, etc. and even `define` and `lambda` are actually primitives that can be treated as values
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no built-in backquote-unquote (this is also done with macros)
 * The semantics of nil are somewhere between CL and Scheme:
