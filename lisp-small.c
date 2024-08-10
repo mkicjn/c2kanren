@@ -14,13 +14,6 @@
 #define MAX_SYM_SPACE 100000
 #endif
 
-#ifdef DEBUG
-#undef DEBUG
-#define DEBUG(stmt) stmt
-#else
-#define DEBUG(stmt)
-#endif
-
 
 // **************** Top-level definitions ****************
 
@@ -32,27 +25,30 @@
 	X("\003cdr", cdr) \
 	X("\004atom", atom) \
 	X("\002eq", eq) \
-	X("\003not", not) \
 	X("\005quote", quote) \
 	X("\004cond", cond) \
 	X("\006lambda", lambda) \
-	X("\004eval", eval)
+	X("\006define", define)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
 FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Designated sentinel values (for when a value is needed that cannot be mistaken for an ordinary input or computation)
-#define ERROR ((void *)1)       // used for value errors or failed lookups
-#define CONTINUE ((void *)2)    // used as part of TCO to signal eval to continue
-#define FORWARD ((void *)3)     // used as part of GC to signal copy to avoid duplication
+#define ERROR ((void *)1)     // used for value errors or failed lookups
+#define CONTINUE ((void *)2)  // used as part of TCO to signal eval to continue
+#define FORWARD ((void *)3)   // used as part of GC to signal copy to avoid duplication
+
+// Values returned on certain errors
+#define NOT_BOUND NULL  // return nil for unbound variables
+#define NOT_CONS  NULL  // return nil on invalid car/cdr operations
 
 
 // **************** Memory regions and region-based type inference ****************
 
 // Space for cons cells in the form of [cell 0 car, cell 0 cdr, cell 1 car, cell 1 cdr, ...]
 // (This memory is managed via garbage collection)
-void *cells[MAX_CELL_SPACE];
+void *cells[MAX_CELL_SPACE+1];
 void **next_cell = cells;
 
 // Space for symbols in the form of counted strings (first char is length), stored consecutively
@@ -82,12 +78,12 @@ void *cons(void *x, void *y)
 
 static inline void *car(void *l)
 {
-	return IN(l, cells) ? *CAR(l) : NULL;
+	return IN(l, cells) ? *CAR(l) : NOT_CONS;
 }
 
 static inline void *cdr(void *l)
 {
-	return IN(l, cells) ? *CDR(l) : NULL;
+	return IN(l, cells) ? *CDR(l) : NOT_CONS;
 }
 
 // Convenience macros
@@ -136,12 +132,18 @@ void print(void *x)
 
 void *read(void);
 
+char *preload = NULL; // String to parse before switching to stdin
+
 char peek = '\0';
+
 char next(void)
 {
 	// Delay char stream by one to allow lookahead
 	char c = peek;
-	peek = getchar();
+	if (preload && *preload != '\0')
+		peek = *(preload++);
+	else
+		peek = getchar();
 	return c;
 }
 
@@ -225,6 +227,61 @@ void *read(void)
 }
 
 
+/* **************** Garbage collection **************** */
+
+void **pre_eval = cells;
+
+void *copy(void *x, ptrdiff_t diff)
+{
+	// Copy an object, offsetting all cell pointers
+	if (!IN(x, cells) || (void **)x < pre_eval) // No need to copy values below the pre-eval point
+		return x;
+	if (car(x) == FORWARD) // No need to copy values that have already been copied
+		return cdr(x);
+	// Deep copy the value normally
+	void *a = copy(car(x), diff);
+	void *d = copy(cdr(x), diff);
+	void *res = (void **)cons(a, d) - diff;
+	// Leave a forward pointer to indicate that the cell has already been copied
+	*CAR(x) = FORWARD;
+	*CDR(x) = res;
+	return res;
+}
+
+void gc(void **ret, void **env)
+{
+	// Copying garbage collection for a return value and the environment
+	if (next_cell == pre_eval) // Ellide useless calls
+		return;
+	// Copy the return value and environment as needed, offsetting cells to match their post-GC position
+	void **pre_copy = next_cell;
+	ptrdiff_t diff = pre_copy - pre_eval;
+	void *post_gc_env = copy(*env, diff);
+	void *post_gc_ret = copy(*ret, diff);
+	// Move the copied cells into the post-GC position
+	ptrdiff_t copy_size = next_cell - pre_copy;
+	memcpy(pre_eval, pre_copy, copy_size * sizeof(*pre_copy));
+	// Correct next_cell to account for GC
+	next_cell = pre_eval + copy_size;
+	*env = post_gc_env;
+	*ret = post_gc_ret;
+	printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);
+}
+
+void *bind(void *k, void *v, void *env)
+{
+	// Try to update an existing binding for k from this eval call
+	for (void *e = env; e > (void *)pre_eval; e = cdr(e)) {
+		if (caar(e) == k) {
+			*CDR(car(e)) = v;
+			return env;
+		}
+	}
+	// If not possible, make a new binding
+	return cons(cons(k, v), env);
+}
+
+
 /* **************** Interpreter **************** */
 
 void *eval(void *x, void *env);
@@ -232,7 +289,7 @@ void *eval(void *x, void *env);
 void *assoc(void *s, void *env)
 {
 	if (!env)
-		return ERROR;
+		return NOT_BOUND;
 	if (caar(env) == s)
 		return cdar(env);
 	return assoc(s, cdr(env));
@@ -242,16 +299,18 @@ void *evlis(void *l, void *env)
 {
 	if (!l)
 		return NULL;
+	if (IN(l, syms))
+		return eval(l, env);
 	cons(eval(car(l), env), evlis(cdr(l), env));
 }
 
 void *pairlis(void *a, void *b, void *env)
 {
-	if (!a || !b)
+	if (!a)
 		return env;
-	if (!IN(a, cells))
-		return cons(cons(a, b), env);
-	return pairlis(cdr(a), cdr(b), cons(cons(car(a), car(b)), env));
+	if (IN(a, syms))
+		return bind(a, b, env);
+	return pairlis(cdr(a), cdr(b), bind(a, b, env));
 }
 
 void *evcon(void *cs, void *env)
@@ -259,47 +318,57 @@ void *evcon(void *cs, void *env)
 	if (!cs)
 		return NULL;
 	if (eval(caar(cs), env))
-		return eval(cadar(cs), env);
+		return cadar(cs); //eval(cadar(cs), env);
 	return evcon(cdr(cs), env);
+}
+
+void *apply(void *f, void *args, void **env)
+{
+	if (caar(f) == sym_lambda) { // f => ((lambda cadar caddar) . cdr)
+		*env = pairlis(cadar(f), evlis(args, env), cdr(f));
+		return caddar(f); //eval(caddar(f), pairlis(cadar(f), evlis(args, env), cdr(f)));
+	}
+	return ERROR;
 }
 
 void *eval(void *x, void *env)
 {
-	if (!IN(x, cells)) {
-		// Non-list expressions
-		if (!x)
-			return NULL;
+	void **old_pre_eval = pre_eval;
+	pre_eval = next_cell;
+
+	void *res = CONTINUE;
+	while (res == CONTINUE) {
+		if (x == sym_t)
+			res = x;
 		else if (IN(x, syms))
-			return assoc(x, env);
-		else
-			return x;
-	} else if (!IN(car(x), cells)) {
-		// Primitive operators
-		if (car(x) == sym_quote)
-			return cadr(x);
+			res = assoc(x, env);
+		else if (!IN(x, cells))
+			res = x;
+		else if (car(x) == sym_quote)
+			res = cadr(x);
 		else if (car(x) == sym_car)
-			return car(eval(cadr(x), env));
+			res = car(eval(cadr(x), env));
 		else if (car(x) == sym_cdr)
-			return cdr(eval(cadr(x), env));
+			res = cdr(eval(cadr(x), env));
 		else if (car(x) == sym_atom)
-			return IN(eval(cadr(x), env), cells) ? sym_t : NULL;
+			res = IN(eval(cadr(x), env), cells) ? sym_t : NULL;
 		else if (car(x) == sym_eq)
-			return eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
+			res = eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
 		else if (car(x) == sym_cons)
-			return cons(eval(cadr(x), env), eval(caddr(x), env));
+			res = cons(eval(cadr(x), env), eval(caddr(x), env));
 		else if (car(x) == sym_lambda)
-			return cons(x, env);
+			res = cons(x, env);
 		else if (car(x) == sym_cond)
-			return evcon(x, env);
+			x = evcon(x, env); // TCO'd
+		else if (IN(car(x), cells))
+			x = apply(eval(car(x), env), cdr(x), &env); // TCO'd
+		else
+			res = ERROR;
 	}
 
-	// Complex expressions
-	void *f = eval(car(x), env);
-	if (!IN(f, cells)) // f => atom
-		return eval(cons(f, cdr(x)), env);
-	else if (caar(f) == sym_lambda)  // f => ((lambda cadar caddar) . cdr)
-		return eval(caddar(f), pairlis(cadar(f), evlis(cdr(x), env), cdr(f)));
-	return ERROR;
+	gc(&res, &env);
+	pre_eval = old_pre_eval;
+	return res;
 }
 
 
@@ -307,16 +376,30 @@ void *eval(void *x, void *env)
 
 int main()
 {
-	// Set up symbols using the X macro
+	// Set up symbols using X macro
 #define COPY_SYM(sym, id) \
 		sym_##id = next_sym; \
 		memcpy(next_sym, sym, sym[0] + 1); \
 		next_sym += sym[0] + 1;
 	FOREACH_SYMVAR(COPY_SYM)
 
+	preload =
+	"(define list (lambda args args))"
+	"(define curry (lambda (f x) (lambda args (f x . args))))"
+	"(define Y ((lambda (g) (g g)) (lambda (y) (lambda (f) (f (lambda args (((y y) f) . args)))))))";
+
+	void *env;
+	void *nil = NULL;
 	for (;;) {
-		print(eval(read(), NULL));
-		printf("\n");
+		pre_eval = next_cell;
+		void *expr = read();
+		if (car(expr) == sym_define) {
+			env = bind(cadr(expr), eval(caddr(expr), env), env);
+		} else {
+			print(eval(expr, env));
+			printf("\n");
+		}
+		gc(&nil, &env);
 	}
 	return 0;
 }
