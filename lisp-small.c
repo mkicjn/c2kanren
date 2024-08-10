@@ -14,7 +14,6 @@
 #define MAX_SYM_SPACE 100000
 #endif
 
-
 // **************** Top-level definitions ****************
 
 // X macro: Built-in symbols
@@ -28,7 +27,9 @@
 	X("\005quote", quote) \
 	X("\004cond", cond) \
 	X("\006lambda", lambda) \
-	X("\006define", define)
+	X("\006define", define) \
+	X("\004eval", eval) \
+	X("\005macro", macro)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
@@ -41,14 +42,14 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Values returned on certain errors
 #define NOT_BOUND NULL  // return nil for unbound variables
-#define NOT_CONS  NULL  // return nil on invalid car/cdr operations
+#define NOT_CONS  NULL  // return nil for invalid car/cdr operations
 
 
 // **************** Memory regions and region-based type inference ****************
 
 // Space for cons cells in the form of [cell 0 car, cell 0 cdr, cell 1 car, cell 1 cdr, ...]
 // (This memory is managed via garbage collection)
-void *cells[MAX_CELL_SPACE+1];
+void *cells[MAX_CELL_SPACE];
 void **next_cell = cells;
 
 // Space for symbols in the form of counted strings (first char is length), stored consecutively
@@ -265,7 +266,6 @@ void gc(void **ret, void **env)
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
-	printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);
 }
 
 void *bind(void *k, void *v, void *env)
@@ -310,7 +310,7 @@ void *pairlis(void *a, void *b, void *env)
 		return env;
 	if (IN(a, syms))
 		return bind(a, b, env);
-	return pairlis(cdr(a), cdr(b), bind(a, b, env));
+	return pairlis(cdr(a), cdr(b), bind(car(a), car(b), env));
 }
 
 void *evcon(void *cs, void *env)
@@ -318,15 +318,17 @@ void *evcon(void *cs, void *env)
 	if (!cs)
 		return NULL;
 	if (eval(caar(cs), env))
-		return cadar(cs); //eval(cadar(cs), env);
+		return cadar(cs);
 	return evcon(cdr(cs), env);
 }
 
 void *apply(void *f, void *args, void **env)
 {
-	if (caar(f) == sym_lambda) { // f => ((lambda cadar caddar) . cdr)
-		*env = pairlis(cadar(f), evlis(args, env), cdr(f));
-		return caddar(f); //eval(caddar(f), pairlis(cadar(f), evlis(args, env), cdr(f)));
+	if (caar(f) == sym_macro)
+		return eval(caddar(f), pairlis(cadar(f), args, cdr(f)));
+	if (caar(f) == sym_lambda) {
+		*env = pairlis(cadar(f), evlis(args, *env), cdr(f));
+		return caddar(f);
 	}
 	return ERROR;
 }
@@ -351,19 +353,19 @@ void *eval(void *x, void *env)
 		else if (car(x) == sym_cdr)
 			res = cdr(eval(cadr(x), env));
 		else if (car(x) == sym_atom)
-			res = IN(eval(cadr(x), env), cells) ? sym_t : NULL;
+			res = !IN(eval(cadr(x), env), cells) ? sym_t : NULL;
 		else if (car(x) == sym_eq)
 			res = eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
 		else if (car(x) == sym_cons)
 			res = cons(eval(cadr(x), env), eval(caddr(x), env));
-		else if (car(x) == sym_lambda)
+		else if (car(x) == sym_lambda || car(x) == sym_macro)
 			res = cons(x, env);
+		else if (car(x) == sym_eval)
+			x = eval(cadr(x), env);
 		else if (car(x) == sym_cond)
-			x = evcon(x, env); // TCO'd
-		else if (IN(car(x), cells))
-			x = apply(eval(car(x), env), cdr(x), &env); // TCO'd
+			x = evcon(x, env);
 		else
-			res = ERROR;
+			x = apply(eval(car(x), env), cdr(x), &env);
 	}
 
 	gc(&res, &env);
@@ -388,10 +390,9 @@ int main()
 	"(define curry (lambda (f x) (lambda args (f x . args))))"
 	"(define Y ((lambda (g) (g g)) (lambda (y) (lambda (f) (f (lambda args (((y y) f) . args)))))))";
 
-	void *env;
+	void *env = NULL;
 	void *nil = NULL;
 	for (;;) {
-		pre_eval = next_cell;
 		void *expr = read();
 		if (car(expr) == sym_define) {
 			env = bind(cadr(expr), eval(caddr(expr), env), env);
