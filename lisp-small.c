@@ -36,13 +36,15 @@
 FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Designated sentinel values (for when a value is needed that cannot be mistaken for an ordinary input or computation)
-#define ERROR ((void *)1)     // used for value errors or failed lookups
-#define CONTINUE ((void *)2)  // used as part of TCO to signal eval to continue
-#define FORWARD ((void *)3)   // used as part of GC to signal copy to avoid duplication
+#define ERROR     ((void *)1)  // used as a generic error value
+#define FORWARD   ((void *)2)  // used as part of GC to signal copy to avoid duplication
+#define CONTINUE  ((void *)3)  // used as part of TCO to signal eval to continue
+#define EMPTY     ((void *)4)  // used to represent the absence of any value (not displayed)
 
 // Values returned on certain errors
-#define NOT_BOUND NULL  // return nil for unbound variables
-#define NOT_CONS  NULL  // return nil for invalid car/cdr operations
+#define NOT_BOUND  NULL   // returned when unbound variables are looked up
+#define NOT_CONS   NULL   // returned on invalid car/cdr operations
+#define EVAL_NIL   NULL   // returned when evaluating the empty list
 
 
 // **************** Memory regions and region-based type inference ****************
@@ -103,6 +105,11 @@ void print(void *x)
 {
 	if (!x) {
 		printf("()");
+	} else if (car(car(x)) == sym_lambda || car(car(x)) == sym_macro) {
+		// Elide the environment when printing closures
+		printf("(");
+		print(car(x));
+		printf(" ...)");
 	} else if (IN(x, cells)) {
 		// For lists, first print the head
 		printf("(");
@@ -126,6 +133,14 @@ void print(void *x)
 	} else {
 		printf("\033[33m{sentinel: %p}\033[m", x);
 	}
+}
+
+void display(void *x)
+{
+	if (x == EMPTY)
+		return;
+	print(x);
+	printf("\n");
 }
 
 
@@ -177,8 +192,9 @@ char *intern(char *s)
 {
 	// Intern the newest symbol, pointed at by s
 	// (i.e., return a pointer to a duplicate symbol and free down to s if one exists)
+	int len = *s + 1; // Note that s is a counted string
 	for (char *cmp = syms; cmp < s; cmp += *cmp + 1) { // For each symbol (consecutive counted strings)
-		if (memcmp(cmp, s, *s + 1) == 0) { // memcmp checks length byte first
+		if (memcmp(cmp, s, len) == 0) {
 			next_sym = s; // i.e., free s
 			return cmp;
 		}
@@ -189,13 +205,13 @@ char *intern(char *s)
 void *symbol(void)
 {
 	// Parse a symbol (and intern it)
-	char *s = next_sym++;
+	char *s = next_sym;
 	while (peek > ' ' && peek != '(' && peek != ')')
-		*(next_sym++) = next();
-	if (next_sym == s+1) // Disallow empty symbols
+		*(++next_sym) = next();
+	if (next_sym == s) // Disallow empty symbols
 		return ERROR;
-	*s = next_sym - (s+1); // Store length in first byte
-	// If the symbol is a valid number, return that; otherwise intern string
+	*s = next_sym - s;
+	next_sym++;
 	return intern(s);
 }
 
@@ -338,36 +354,45 @@ void *eval(void *x, void *env)
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
 
+	// TCO trampoline
 	void *res = CONTINUE;
 	while (res == CONTINUE) {
-		if (x == sym_t)
+		if (!x) {
+			res = EVAL_NIL;
+		} else if (x == sym_t) {
 			res = x;
-		else if (IN(x, syms))
+		} else if (IN(x, syms)) {
 			res = assoc(x, env);
-		else if (!IN(x, cells))
+		} else if (!IN(x, cells)) {
 			res = x;
-		else if (car(x) == sym_quote)
+		} else if (car(x) == sym_quote) {
 			res = cadr(x);
-		else if (car(x) == sym_car)
+		} else if (car(x) == sym_car) {
 			res = car(eval(cadr(x), env));
-		else if (car(x) == sym_cdr)
+		} else if (car(x) == sym_cdr) {
 			res = cdr(eval(cadr(x), env));
-		else if (car(x) == sym_atom)
+		} else if (car(x) == sym_atom) {
 			res = !IN(eval(cadr(x), env), cells) ? sym_t : NULL;
-		else if (car(x) == sym_eq)
+		} else if (car(x) == sym_eq) {
 			res = eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
-		else if (car(x) == sym_cons)
+		} else if (car(x) == sym_cons) {
 			res = cons(eval(cadr(x), env), eval(caddr(x), env));
-		else if (car(x) == sym_lambda || car(x) == sym_macro)
+		} else if (car(x) == sym_lambda || car(x) == sym_macro) {
 			res = cons(x, env);
-		else if (car(x) == sym_eval)
-			x = eval(cadr(x), env);
-		else if (car(x) == sym_cond)
-			x = evcon(x, env);
-		else
-			x = apply(eval(car(x), env), cdr(x), &env);
+		} else {
+			// TCO'd forms
+			if (car(x) == sym_eval)
+				x = eval(cadr(x), env);
+			else if (car(x) == sym_cond)
+				x = evcon(x, env);
+			else
+				x = apply(eval(car(x), env), cdr(x), &env);
+			// GC for intermediate eval steps
+			gc(&x, &env);
+		}
 	}
 
+	// GC for result
 	gc(&res, &env);
 	pre_eval = old_pre_eval;
 	return res;
@@ -386,9 +411,13 @@ int main()
 	FOREACH_SYMVAR(COPY_SYM)
 
 	preload =
+	"(define not (lambda (x) (eq x ())))"
+	"(define consp (lambda (x) (not (atom x))))"
 	"(define list (lambda args args))"
 	"(define curry (lambda (f x) (lambda args (f x . args))))"
-	"(define Y ((lambda (g) (g g)) (lambda (y) (lambda (f) (f (lambda args (((y y) f) . args)))))))";
+	"(define Y ((lambda (g) (g g)) (lambda (y) (lambda (f) (f (lambda args (((y y) f) . args)))))))"
+	"(define label (macro (x y) (list 'Y (list 'lambda (list x) y))))"
+	"\n";
 
 	void *env = NULL;
 	void *nil = NULL;
@@ -397,8 +426,7 @@ int main()
 		if (car(expr) == sym_define) {
 			env = bind(cadr(expr), eval(caddr(expr), env), env);
 		} else {
-			print(eval(expr, env));
-			printf("\n");
+			display(eval(expr, env));
 		}
 		gc(&nil, &env);
 	}
