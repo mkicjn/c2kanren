@@ -317,7 +317,7 @@ void *evlis(void *l, void *env)
 		return NULL;
 	if (IN(l, syms))
 		return eval(l, env);
-	cons(eval(car(l), env), evlis(cdr(l), env));
+	return cons(eval(car(l), env), evlis(cdr(l), env));
 }
 
 void *pairlis(void *a, void *b, void *env)
