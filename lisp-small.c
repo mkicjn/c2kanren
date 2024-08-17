@@ -37,9 +37,9 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Designated sentinel values (for when a value is needed that cannot be mistaken for an ordinary input or computation)
 #define ERROR     ((void *)1)  // used as a generic error value
-#define FORWARD   ((void *)2)  // used as part of GC to signal copy to avoid duplication
-#define CONTINUE  ((void *)3)  // used as part of TCO to signal eval to continue
-#define EMPTY     ((void *)4)  // used to represent the absence of any value (not displayed)
+#define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
+#define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
+#define EMPTY     ((void *)4)  // used to represent the absence of any value to display
 
 // Values returned on certain errors
 #define NOT_BOUND  NULL   // returned when unbound variables are looked up
@@ -275,10 +275,10 @@ void gc(void **ret, void **env)
 	ptrdiff_t diff = pre_copy - pre_eval;
 	void *post_gc_env = copy(*env, diff);
 	void *post_gc_ret = copy(*ret, diff);
-	// Move the copied cells into the post-GC position
+	// Move the copied cells into their final post-GC position
 	ptrdiff_t copy_size = next_cell - pre_copy;
 	memcpy(pre_eval, pre_copy, copy_size * sizeof(*pre_copy));
-	// Correct next_cell to account for GC
+	// Adjust next_cell to free up cells not copied by GC
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
@@ -340,13 +340,45 @@ void *evcon(void *cs, void *env)
 
 void *apply(void *f, void *args, void **env)
 {
-	if (caar(f) == sym_macro)
+	if (caar(f) == sym_macro) // macro -> continue from result of evaluating body with bound args
 		return eval(caddar(f), pairlis(cadar(f), args, cdr(f)));
-	if (caar(f) == sym_lambda) {
+	if (caar(f) == sym_lambda) { // lambda -> continue from body after evaluating and binding args
 		*env = pairlis(cadar(f), evlis(args, *env), cdr(f));
 		return caddar(f);
 	}
 	return ERROR;
+}
+
+void *eval_base(void *x, void *env)
+{
+	// Handle atomic expressions
+	if (!x) // ()
+		return EVAL_NIL;
+	if (x == sym_t) // t
+		return x;
+	if (IN(x, syms)) // symbol
+		return assoc(x, env);
+	if (!IN(x, cells)) // sentinel value
+		return x;
+
+	// Handle primitive function applications
+	if (car(x) == sym_quote) // quote
+		return cadr(x);
+	if (car(x) == sym_car) // car
+		return car(eval(cadr(x), env));
+	if (car(x) == sym_cdr) // cdr
+		return cdr(eval(cadr(x), env));
+	if (car(x) == sym_atom) // atom
+		return !IN(eval(cadr(x), env), cells) ? sym_t : NULL;
+	if (car(x) == sym_eq) // eq
+		return eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
+	if (car(x) == sym_cons) // cons
+		return cons(eval(cadr(x), env), eval(caddr(x), env));
+	if (car(x) == sym_lambda || car(x) == sym_macro) // lambda/macro
+		return cons(x, env);
+
+	// Otherwise, not a base case
+	return CONTINUE;
 }
 
 void *eval(void *x, void *env)
@@ -354,48 +386,23 @@ void *eval(void *x, void *env)
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
 
-	// TCO trampoline
-	void *res = CONTINUE;
-	while (res == CONTINUE) {
-		if (!x) {
-			res = EVAL_NIL;
-		} else if (x == sym_t) {
-			res = x;
-		} else if (IN(x, syms)) {
-			res = assoc(x, env);
-		} else if (!IN(x, cells)) {
-			res = x;
-		} else if (car(x) == sym_quote) {
-			res = cadr(x);
-		} else if (car(x) == sym_car) {
-			res = car(eval(cadr(x), env));
-		} else if (car(x) == sym_cdr) {
-			res = cdr(eval(cadr(x), env));
-		} else if (car(x) == sym_atom) {
-			res = !IN(eval(cadr(x), env), cells) ? sym_t : NULL;
-		} else if (car(x) == sym_eq) {
-			res = eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
-		} else if (car(x) == sym_cons) {
-			res = cons(eval(cadr(x), env), eval(caddr(x), env));
-		} else if (car(x) == sym_lambda || car(x) == sym_macro) {
-			res = cons(x, env);
-		} else {
-			// TCO'd forms
-			if (car(x) == sym_eval)
-				x = eval(cadr(x), env);
-			else if (car(x) == sym_cond)
-				x = evcon(x, env);
-			else
-				x = apply(eval(car(x), env), cdr(x), &env);
-			// GC for intermediate eval steps
-			gc(&x, &env);
-		}
+	// Trampoline
+	void *ret;
+	while ((ret = eval_base(x, env)) == CONTINUE) {
+		if (car(x) == sym_eval) // eval -> continue from expression given by evaluated argument
+			x = eval(cadr(x), env);
+		else if (car(x) == sym_cond) // cond -> continue from expression given by evcon
+			x = evcon(x, env);
+		else // closure application -> continue from expression given by apply (lambda body / macro result)
+			x = apply(eval(car(x), env), cdr(x), &env);
+		// GC for intermediate eval steps
+		gc(&x, &env);
 	}
 
 	// GC for result
-	gc(&res, &env);
+	gc(&ret, &env);
 	pre_eval = old_pre_eval;
-	return res;
+	return ret;
 }
 
 
@@ -410,6 +417,7 @@ int main()
 		next_sym += sym[0] + 1;
 	FOREACH_SYMVAR(COPY_SYM)
 
+	// Pre-load useful definitions
 	preload =
 	"(define not (lambda (x) (eq x ())))"
 	"(define consp (lambda (x) (not (atom x))))"
@@ -419,11 +427,13 @@ int main()
 	"(define label (macro (x y) (list 'Y (list 'lambda (list x) y))))"
 	"\n";
 
+	// Run REPL
 	void *env = NULL;
 	void *nil = NULL;
 	for (;;) {
 		void *expr = read();
 		if (car(expr) == sym_define) {
+			// TODO: Find a nicer way to enable macros that use define
 			env = bind(cadr(expr), eval(caddr(expr), env), env);
 		} else {
 			display(eval(expr, env));
