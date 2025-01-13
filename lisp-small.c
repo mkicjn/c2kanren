@@ -14,6 +14,7 @@
 #define MAX_SYM_SPACE 100000
 #endif
 
+
 // **************** Top-level definitions ****************
 
 // X macro: Built-in symbols
@@ -42,7 +43,7 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define EMPTY     ((void *)4)  // used to represent the absence of any value to display
 
 // Values returned on certain errors
-#define NOT_BOUND  NULL   // returned when unbound variables are looked up
+#define NOT_BOUND  ERROR  // returned when unbound variables are looked up
 #define NOT_CONS   NULL   // returned on invalid car/cdr operations
 #define EVAL_NIL   NULL   // returned when evaluating the empty list
 
@@ -127,7 +128,7 @@ void print(void *x)
 		printf(")");
 	} else if (IN(x, syms)) {
 		char *s = x;
-		printf("%.*s", *s, s + 1);
+		printf("%.*s", *(unsigned char *)s, s + 1);
 	} else if (x == ERROR) {
 		printf("\033[31m{error}\033[m");
 	} else {
@@ -192,7 +193,7 @@ char *intern(char *s)
 {
 	// Intern the newest symbol, pointed at by s
 	// (i.e., return a pointer to a duplicate symbol and free down to s if one exists)
-	int len = *s + 1; // Note that s is a counted string
+	int len = *(unsigned char *)s + 1; // Note that s is a counted string
 	for (char *cmp = syms; cmp < s; cmp += *cmp + 1) { // For each symbol (consecutive counted strings)
 		if (memcmp(cmp, s, len) == 0) {
 			next_sym = s; // i.e., free s
@@ -304,8 +305,12 @@ void *eval(void *x, void *env);
 
 void *assoc(void *s, void *env)
 {
-	if (!env)
+	if (!env) {
+		printf("\033[31mUnbound variable: ");
+		print(s);
+		printf("\033[m\n");
 		return NOT_BOUND;
+	}
 	if (caar(env) == s)
 		return cdar(env);
 	return assoc(s, cdr(env));

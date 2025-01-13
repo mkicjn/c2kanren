@@ -31,6 +31,13 @@
 #define DEBUG(stmt)
 #endif
 
+#ifdef WERROR
+#undef WERROR
+#define WERROR() exit(1)
+#else
+#define WERROR()
+#endif
+
 
 // **************** Top-level definitions ****************
 
@@ -103,6 +110,11 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define MACRO ((void *)5)       // used to distinguish closures from unevaluated lists
 #define NUMBER ((void *)6)      // used for implementing numbers (see below)
 #define DEFINE ((void *)7)      // used to implement define as a primitive
+
+// Values returned on certain errors
+#define NOT_BOUND  ERROR  // returned when unbound variables are looked up
+#define NOT_CONS   NULL   // returned on invalid car/cdr operations
+#define EVAL_NIL   NULL   // returned when evaluating the empty list
 
 // How exactly to represent numeric values is difficult, since they must be distinguishable from pointers.
 // SectorLISP does not implement numbers, and tinylisp relies on NaN-boxing.
@@ -473,10 +485,11 @@ void *assoc(void *k, void *env)
 	if (env != defines)
 		return assoc(k, defines);
 	// Otherwise, give up
-	printf("\033[31mUnbound variable: ");
+	printf("\033[31mWarning: Unbound variable: ");
 	print(k);
 	printf("\033[m\n");
-	return ERROR;
+	WERROR();
+	return NOT_BOUND;
 }
 
 void *evlis(void *l, void *env)
@@ -540,7 +553,9 @@ void *eval_step(void **cont, void **envp)
 {
 	void *x = *cont, *env = *envp;
 	// Evaluate expression x in environment env (modified for TCO)
-	if (IN(x, syms)) { // Symbol -> return variable binding
+	if (!x) {
+		return EVAL_NIL;
+	} if (IN(x, syms)) { // Symbol -> return variable binding
 		return assoc(x, env);
 	} else if (atom(x)) { // Atomic -> return as-is
 		return x;
@@ -586,6 +601,7 @@ void *eval(void *x, void *env)
 		printf("\033[33mWarning: error evaluating ");
 		print(x);
 		printf("\033[m\n");
+		WERROR();
 	}
 
 	gc(&ret, &env); // Collect garbage, keeping the return value
@@ -722,7 +738,7 @@ void *l_car(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
-	return atom(car(args)) ? ERROR : caar(args);
+	return atom(car(args)) ? NOT_CONS : caar(args);
 }
 
 void *l_cdr(void *args, void **cont, void **envp)
@@ -730,7 +746,7 @@ void *l_cdr(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
-	return atom(car(args)) ? ERROR : cdar(args);
+	return atom(car(args)) ? NOT_CONS : cdar(args);
 }
 
 void *l_atom(void *args, void **cont, void **envp)
