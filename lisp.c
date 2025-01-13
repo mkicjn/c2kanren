@@ -83,6 +83,7 @@
 	X("\006symbol", l_symbol) \
 	X("\006number", l_number) \
 	X("\011primitive", l_primitive) \
+	X("\006expand", l_expand) \
 	FOREACH_PRIM(X)
 
 // Declare a compile-time numeric index for each primitive (later used to index prims[] and prim_syms[])
@@ -627,12 +628,19 @@ int main()
 
 	// Special definitions
 	defines = cons(cons(l_t_sym, l_t_sym), defines);
+	defines = cons(cons(l_expand_sym, NULL), defines);
 
 	// Read-eval-print loop
 	for (;;) {
 		void *nil = NULL;
 		// Evaluate expressions
-		void *res = eval(read(), NULL);
+		void *expr = read();
+		void *expand = assoc(l_expand_sym, defines);
+		if (expand) {
+			expr = eval(list2(expand, list2(l_quote_sym, expr)), NULL);
+			gc(&expr, &defines);
+		}
+		void *res = eval(expr, NULL);
 		if (IN(res, cells) && car(res) == DEFINE) {
 			// Handle defines
 			defines = define(cadr(res), caddr(res), defines);

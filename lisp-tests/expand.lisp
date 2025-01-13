@@ -26,14 +26,26 @@
 
 (define expander
   (lambda (rules)
-    (lambda term (map (curry expand rules) term))))
+    (lambda term (map (curry expandN rules) term))))
 
-(define expand
+(define expandN
   (lambda (rules term)
     (cond ((atom term) term)
 	  (t ((pick-rule rules term (expander rules)) . term)))))
 
 
-(expand (list (cons 'left (lambda (left x y) x))
-	      (cons 'right (lambda (right x y) y)))
+(expandN (list (cons 'left (lambda (left x y) x))
+	       (cons 'right (lambda (right x y) y)))
 	'(cons (left a b) (right a b)))
+
+
+(define expand-rules
+  (list
+    (cons 'left (lambda (left x y) x))
+    (cons 'right (lambda (right x y) y))
+    (cons 'quote list)
+    ))
+
+(define expand (lambda (term) (expandN expand-rules term)))
+
+(cons (left 'a 'b) (right 'a 'b))
