@@ -1,11 +1,14 @@
-CFLAGS=-O3 -Wall -Wextra -pedantic
+CFLAGS=-Os -Wall -Wextra -pedantic
 LDFLAGS=-lm
 
-ALL=a.out
+ALL=lisp lisp-small
 
 all: $(ALL)
 
-a.out: lisp.c
+lisp: lisp.c
+	$(CC) $(CFLAGS) $< -o $@
+
+lisp-small: lisp-small.c
 	$(CC) $(CFLAGS) $< -o $@
 
 .PHONY: clean
