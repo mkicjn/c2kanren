@@ -434,7 +434,7 @@ void *copy(void *x, ptrdiff_t diff)
 void gc(void **ret, void **env)
 {
 	// Copying garbage collection for a return value and the environment
-	if (next_cell == pre_eval) // Ellide useless calls
+	if (next_cell == pre_eval) // Elide useless calls
 		return;
 #ifndef DISABLE_GC
 	DEBUG(clock_t start = clock();)

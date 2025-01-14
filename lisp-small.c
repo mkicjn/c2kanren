@@ -260,7 +260,7 @@ void *copy(void *x, ptrdiff_t diff)
 void gc(void **ret, void **env)
 {
 	// Copying garbage collection for a return value and the environment
-	if (next_cell == pre_eval) // Ellide useless calls
+	if (next_cell == pre_eval) // Elide useless calls
 		return;
 	// Copy the return value and environment as needed, offsetting cells to match their post-GC position
 	void **pre_copy = next_cell;
