@@ -51,6 +51,6 @@
 	  ((eq 'label (car expr)) (cons expr env))
 	  (t (apply (meta-eval (car expr) env) (cdr expr) env)))))
 
-(meta-eval '((lambda (x) (cons x b)) (cons 0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
+(meta-eval '((lambda (x) (cons x b)) (cons '0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
 
 (meta-eval '((label f (lambda () (f)))) '((a . 1))) ; infinite recursion
