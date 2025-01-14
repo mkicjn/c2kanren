@@ -658,6 +658,7 @@ int main()
 		if (expand) {
 			expr = eval(list2(expand, list2(l_quote_sym, expr)), NULL);
 			gc(&expr, &defines);
+			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)
 		}
 		void *res = eval(expr, NULL);
 		if (IN(res, cells) && car(res) == DEFINE) {

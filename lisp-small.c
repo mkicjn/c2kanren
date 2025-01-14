@@ -14,6 +14,13 @@
 #define MAX_SYM_SPACE 100000
 #endif
 
+#ifdef DEBUG
+#undef DEBUG
+#define DEBUG(x) x
+#else
+#define DEBUG(x)
+#endif
+
 
 // **************** Top-level definitions ****************
 
@@ -274,6 +281,7 @@ void gc(void **ret, void **env)
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
+	DEBUG(printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);)
 }
 
 void *bind(void *k, void *v, void *env)
@@ -380,6 +388,7 @@ void *eval(void *x, void *env)
 {
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
+	DEBUG(static int level = 0; level++; printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
 
 	// Trampoline
 	void *ret;
@@ -392,6 +401,7 @@ void *eval(void *x, void *env)
 			x = apply(eval(car(x), env), cdr(x), &env);
 		// GC for intermediate eval steps
 		gc(&x, &env);
+		DEBUG(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
 	}
 
 	// GC for result
@@ -402,6 +412,7 @@ void *eval(void *x, void *env)
 		print(x);
 		printf("`\033[m\n");
 	}
+	DEBUG(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf("\n"); level--;)
 	return ret;
 }
 
@@ -436,11 +447,15 @@ int main()
 		if (expand != NOT_BOUND) {
 			expr = eval(list2(sym_expand, list2(sym_quote, expr)), NULL);
 			gc(&expr, &defines);
+			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)
 		}
 		if (car(expr) == sym_define) {
 			defines = bind(cadr(expr), eval(caddr(expr), NULL), defines);
 		} else {
-			print(eval(expr, NULL));
+			void *res = eval(expr, NULL);
+			DEBUG(printf("\033[32m"));
+			print(res);
+			DEBUG(printf("\033[m"));
 			printf("\n");
 		}
 		gc(&nil, &defines);
