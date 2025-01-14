@@ -36,8 +36,8 @@
 
 (define meta-eval
   (lambda (expr env)
-    (cond ((eq 'symbol (type expr)) (assoc expr env))
-	  ((atom expr) expr)
+    (cond ((not expr) ())
+	  ((atom expr) (assoc expr env))
 	  ((eq 'quote (car expr)) (car (cdr expr)))
 	  ((eq 'cond (car expr)) (evcon (cdr expr) env))
 	  ((eq 'car (car expr)) (car (meta-eval (car (cdr expr)) env)))
