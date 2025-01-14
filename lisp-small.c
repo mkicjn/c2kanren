@@ -30,7 +30,8 @@
 	X("\006lambda", lambda) \
 	X("\006define", define) \
 	X("\004eval", eval) \
-	X("\005macro", macro)
+	X("\005macro", macro) \
+	X("\006expand", expand)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
@@ -301,19 +302,18 @@ void *bind(void *k, void *v, void *env)
 
 /* **************** Interpreter **************** */
 
+void *defines = NULL; // Global Lisp environment
+
 void *eval(void *x, void *env);
 
 void *assoc(void *s, void *env)
 {
-	if (!env) {
-		printf("\033[31mUnbound variable: ");
-		print(s);
-		printf("\033[m\n");
-		return NOT_BOUND;
-	}
-	if (caar(env) == s)
-		return cdar(env);
-	return assoc(s, cdr(env));
+	for (void *kvps = env; IN(kvps, cells); kvps = cdr(kvps))
+		if (s == caar(kvps))
+			return cdar(kvps);
+	if (env != defines)
+		return assoc(s, defines);
+	return NOT_BOUND;
 }
 
 void *evlis(void *l, void *env)
@@ -407,6 +407,11 @@ void *eval(void *x, void *env)
 	// GC for result
 	gc(&ret, &env);
 	pre_eval = old_pre_eval;
+	if (ret == ERROR && x != ERROR) {
+		printf("\033[31mError evaluating: `");
+		print(x);
+		printf("`\033[m\n");
+	}
 	return ret;
 }
 
@@ -433,17 +438,20 @@ int main()
 	"\n";
 
 	// Run REPL
-	void *env = NULL;
 	void *nil = NULL;
 	for (;;) {
 		void *expr = read();
-		if (car(expr) == sym_define) {
-			// TODO: Find a nicer way to enable macros that use define
-			env = bind(cadr(expr), eval(caddr(expr), env), env);
-		} else {
-			display(eval(expr, env));
+		void *expand = assoc(sym_expand, defines);
+		if (expand != NOT_BOUND) {
+			expr = eval(list2(sym_expand, list2(sym_quote, expr)), NULL);
+			gc(&expr, &defines);
 		}
-		gc(&nil, &env);
+		if (car(expr) == sym_define) {
+			defines = bind(cadr(expr), eval(caddr(expr), NULL), defines);
+		} else {
+			display(eval(expr, NULL));
+		}
+		gc(&nil, &defines);
 	}
 	return 0;
 }
