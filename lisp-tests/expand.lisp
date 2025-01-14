@@ -118,20 +118,21 @@
 (defun (append l1 l2)
   (append-cont l1 l2 ident))
 
-(defmacro (` . l)
-  ((Y (lambda (rec)
-	(lambda (l)
-	  (cond ((not l) ())
-		((atom l) (list 'quote l))
-		((eq ',. (car l)) (car (cdr l)))
-		((eq ', (car l)) (list 'cons (car (cdr l)) (rec (cdr (cdr l)))))
-		((eq ',@ (car l)) (list 'append (car (cdr l)) (rec (cdr (cdr l)))))
-		(t (list 'cons (rec (car l)) (rec (cdr l)))))))) l))
+(defun (expand-qq l)
+  (cond ((not l) ())
+	((atom l) (list 'quote l))
+	((eq ',. (car l)) (car (cdr l)))
+	((eq ', (car l)) (list 'cons (car (cdr l)) (expand-qq (cdr (cdr l)))))
+	((eq ',@ (car l)) (list 'append (car (cdr l)) (expand-qq (cdr (cdr l)))))
+	(t (list 'cons (expand-qq (car l)) (expand-qq (cdr l))))))
+
+(defmacro (` . l) (expand-qq l))
 
 ; Testing CPS append and quasiquote macro
 
 (append '(1 2 3) '(4))
 
 (define a '(1 2 3))
+(define b '5)
 
-(` ,@ a . 4)
+(` ,@ a 4 ,. b)
