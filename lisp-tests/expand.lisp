@@ -42,6 +42,15 @@
 		  (cons 'right (lambda (right x y) y)))
 	    '(cons (left a b) (right a b)))
 
+(define expand-let 
+  (lambda (terms body)
+    (cond ((not terms) body)
+	  (t (list (list 'lambda
+			 (list (car (car terms)))
+			 (expand-let (cdr terms) body))
+		   (car (cdr (car terms))))))))
+
+(expand-let '((a 'a) (b 'b)) '(cons a b))
 
 (define expand-rules
   (list
@@ -58,11 +67,13 @@
 				  (list 'quote (car name/args))
 				  (list 'lambda name/args body)
 				  'expand-rules))))
+    (cons 'let (lambda (let terms body) (expand-let terms body)))
     (cons 'quote list) ; Do not expand within quotes
     ))
 
 (define expand (lambda (term) (expand-all expand-rules term)))
 
+(let ((a 'a) (b 'b) (c (list a b)) (d (cdr c))) d)
 
 (cons (left 'a 'b) (right 'a 'b))
 
