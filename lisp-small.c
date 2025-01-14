@@ -41,7 +41,6 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define ERROR     ((void *)1)  // used as a generic error value
 #define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
 #define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
-#define EMPTY     ((void *)4)  // used to represent the absence of any value to display
 
 // Values returned on certain errors
 #define NOT_BOUND  ERROR  // returned when unbound variables are looked up
@@ -107,11 +106,6 @@ void print(void *x)
 {
 	if (!x) {
 		printf("()");
-	} else if (car(car(x)) == sym_lambda || car(car(x)) == sym_macro) {
-		// Elide the environment when printing closures
-		printf("(");
-		print(car(x));
-		printf(" ...)");
 	} else if (IN(x, cells)) {
 		// For lists, first print the head
 		printf("(");
@@ -135,14 +129,6 @@ void print(void *x)
 	} else {
 		printf("\033[33m{sentinel: %p}\033[m", x);
 	}
-}
-
-void display(void *x)
-{
-	if (x == EMPTY)
-		return;
-	print(x);
-	printf("\n");
 }
 
 
@@ -434,11 +420,11 @@ int main()
 	// Pre-load useful definitions
 	preload =
 	"(define not (lambda (x) (eq x ())))"
-	"(define consp (lambda (x) (not (atom x))))"
 	"(define list (lambda args args))"
 	"(define curry (lambda (f x) (lambda args (f x . args))))"
-	"(define Y ((lambda (g) (g g)) (lambda (y) (lambda (f) (f (lambda args (((y y) f) . args)))))))"
-	"(define label (macro (x y) (list 'Y (list 'lambda (list x) y))))"
+	"(define bind (lambda (k v e) (cons (cons k v) e)))"
+	"(define assoc (lambda (s l) (cond ((not l) ()) ((eq s (car (car l))) (car l)) (t (assoc s (cdr l))))))"
+	"(define map (lambda (f l) (cond (l (cons (f (car l)) (map f (cdr l)))))))"
 	"\n";
 
 	// Run REPL
@@ -453,7 +439,8 @@ int main()
 		if (car(expr) == sym_define) {
 			defines = bind(cadr(expr), eval(caddr(expr), NULL), defines);
 		} else {
-			display(eval(expr, NULL));
+			print(eval(expr, NULL));
+			printf("\n");
 		}
 		gc(&nil, &defines);
 	}
