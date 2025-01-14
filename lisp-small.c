@@ -21,6 +21,10 @@
 #define DEBUG(x)
 #endif
 
+#ifndef RCFILE
+#define RCFILE "rc.lisp"
+#endif
+
 
 // **************** Top-level definitions ****************
 
@@ -143,17 +147,22 @@ void print(void *x)
 
 void *read(void);
 
-char *preload = NULL; // String to parse before switching to stdin
+FILE *preload = NULL; // File to parse before switching to stdin
 
-char peek = '\0';
+int peek = '\0';
 
 char next(void)
 {
 	// Delay char stream by one to allow lookahead
 	char c = peek;
-	if (preload && *preload != '\0')
-		peek = *(preload++);
-	else
+	if (preload) {
+		peek = fgetc(preload);
+		if (peek == EOF) {
+			fclose(preload);
+			preload = NULL;
+		}
+	}
+	if (!preload)
 		peek = getchar();
 	return c;
 }
@@ -429,15 +438,7 @@ int main()
 	FOREACH_SYMVAR(COPY_SYM)
 
 	// Pre-load useful definitions
-	preload =
-	"(define not (lambda (x) (eq x ())))"
-	"(define list (lambda args args))"
-	"(define curry (lambda (f x) (lambda args (f x . args))))"
-	"(define Y (lambda (f) (f (lambda args ((Y f) . args)))))"
-	"(define bind (lambda (k v e) (cons (cons k v) e)))"
-	"(define assoc (lambda (s l) (cond ((not l) ()) ((eq s (car (car l))) (car l)) (t (assoc s (cdr l))))))"
-	"(define map (lambda (f l) (cond (l (cons (f (car l)) (map f (cdr l)))))))"
-	"\n";
+	preload = fopen(RCFILE, "r");
 
 	// Run REPL
 	void *nil = NULL;

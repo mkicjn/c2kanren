@@ -5,10 +5,7 @@ ALL=lisp lisp-small
 
 all: $(ALL)
 
-lisp: lisp.c
-	$(CC) $(CFLAGS) $< -o $@
-
-lisp-small: lisp-small.c
+%: %.c
 	$(CC) $(CFLAGS) $< -o $@
 
 .PHONY: clean
