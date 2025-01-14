@@ -305,7 +305,11 @@ void *body(void)
 {
 	// Parse a list body (i.e., without parentheses)
 	space();
-	if (peek == ')') {
+	if (peek == ';') { // Ignore line comments inside lists
+		while (peek != '\n')
+			next();
+		return body();
+	} else if (peek == ')') {
 		return NULL;
 	} else if (peek == '.') {
 		next(); // Discard .

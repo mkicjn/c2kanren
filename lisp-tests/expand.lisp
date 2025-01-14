@@ -7,6 +7,10 @@
   (lambda (f x)
     (lambda args (f x . args))))
 
+(define bind
+  (lambda (k v e)
+    (cons (cons k v) e)))
+
 (define assoc
   (lambda (s l)
     (cond ((not l) ())
@@ -38,6 +42,7 @@
 		  (cons 'right (lambda (right x y) y)))
 	    '(cons (left a b) (right a b)))
 
+
 (define expand-rules
   (list
     (cons 'left (lambda (left x y) x))
@@ -45,21 +50,19 @@
     (cons 'defun (lambda (defun name/args body)
 		   (list 'define
 			 (car name/args)
-			 (list 'lambda
-			       (cdr name/args)
-			       body))))
+			 (list 'lambda (cdr name/args) body))))
     (cons 'defmacro (lambda (defmacro name/args body)
 		      (list 'define
 			    'expand-rules
-			    (list 'cons
-				  (list 'cons
-					(list 'quote (car name/args))
-					(list 'lambda name/args body))
+			    (list 'bind
+				  (list 'quote (car name/args))
+				  (list 'lambda name/args body)
 				  'expand-rules))))
-    (cons 'quote list)
+    (cons 'quote list) ; Do not expand within quotes
     ))
 
 (define expand (lambda (term) (expand-all expand-rules term)))
+
 
 (cons (left 'a 'b) (right 'a 'b))
 
