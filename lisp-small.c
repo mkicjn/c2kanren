@@ -422,6 +422,7 @@ int main()
 	"(define not (lambda (x) (eq x ())))"
 	"(define list (lambda args args))"
 	"(define curry (lambda (f x) (lambda args (f x . args))))"
+	"(define Y (lambda (f) (f (lambda args ((Y f) . args)))))"
 	"(define bind (lambda (k v e) (cons (cons k v) e)))"
 	"(define assoc (lambda (s l) (cond ((not l) ()) ((eq s (car (car l))) (car l)) (t (assoc s (cdr l))))))"
 	"(define map (lambda (f l) (cond (l (cons (f (car l)) (map f (cdr l)))))))"
