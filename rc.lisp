@@ -10,8 +10,6 @@
 
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 
-(define bind (lambda (k v e) (cons (cons k v) e)))
-
 (define assoc
   (lambda (s l)
     (cond ((not l) ())
@@ -20,59 +18,70 @@
 
 (define map
   (lambda (f l)
-    (cond (l (cons (f (car l)) (map f (cdr l)))))))
+    (cond ((not l) ())
+	  ((atom l) (f l))
+	  (t (cons (f (car l)) (map f (cdr l)))))))
 
 
-;; Support for macros
-; TODO: Uncomment when tested with ukanren.lisp and friends
+;; Macro support
 
-(define pick-rule
-  (lambda (rules term base)
-    (cond ((not rules) base)
-	  ((eq (car term) (car (car rules))) (cdr (car rules)))
-	  (t (pick-rule (cdr rules) term base)))))
+(define non-expandable
+  (lambda (expr)
+    (cond ((atom expr) t)
+	  ((eq (car expr) 'quote) t)
+	  (t ()))))
 
-(define expander
-  (lambda (rules)
-    (lambda term (map (curry expand-all rules) term))))
+(define expand-shallow
+  (lambda (rules expr)
+    (cond ((non-expandable expr) expr)
+	  (t ((lambda (rule)
+		(cond ((not rule) expr)
+		      (t (expand-shallow rules (rule . expr)))))
+	      (cdr (assoc (car expr) rules)))))))
 
-(define expand-all
-  (lambda (rules term)
-    (cond ((atom term) term)
-	  (t ((pick-rule rules term (expander rules)) . term)))))
+(define expand-deep
+  (lambda (rules expr)
+    ((lambda (expr)
+       (cond ((non-expandable expr) expr)
+	     (t (map (curry expand-deep rules) expr))))
+     (expand-shallow rules expr))))
+
+
+;; Implementing some real macros
 
 (define expand-rules
   (list
-    (cons 'defun (lambda (defun name/args body)
-		   (list 'define
-			 (car name/args)
-			 (list 'lambda (cdr name/args) (expand body)))))
-    (cons 'defmacro (lambda (defmacro name/args body)
-		      (list 'define
-			    'expand-rules
-			    (list 'bind
-				  (list 'quote (car name/args))
-				  (list 'lambda name/args (expand body))
-				  'expand-rules))))
-    (cons 'quote list) ; No recursion of `expand` implies no macro expansion within quotes
-    ))
+    (cons 'defmacro
+	  (lambda (defmacro name/args body)
+	    (list 'define
+		  'expand-rules
+		  (list 'cons
+			(list 'cons
+			      (list 'quote (car name/args))
+			      (list 'lambda name/args body))
+			'expand-rules))))))
 
-(define expand (lambda (term) (expand-all expand-rules term)))
+(define expand (lambda (expr) (expand-deep expand-rules expr)))
+
+(defmacro (defun name/args body)
+  (list 'define
+	(car name/args)
+	(list 'lambda (cdr name/args) body)))
 
 
-;; Support for `let`
+;; Support for let-bindings
 
-(defun (expand-let terms body)
-  (cond ((not terms) (expand body))
+(defun (expand-let bindings body)
+  (cond ((not bindings) body)
 	(t (list (list 'lambda
-		       (list (car (car terms)))
-		       (expand-let (cdr terms) body))
-		 (expand (car (cdr (car terms))))))))
+		       (list (car (car bindings)))
+		       (expand-let (cdr bindings) body))
+		 (car (cdr (car bindings)))))))
 
-(defmacro (let terms body) (expand-let terms body))
+(defmacro (let bindings body) (expand-let bindings body))
 
 
-;; Support for quasiquotation (or something like it)
+;; Support for quasiquotation
 
 (defun (ident x) x)
 
@@ -86,9 +95,9 @@
 (defun (expand-qq l)
   (cond ((not l) ())
 	((atom l) (list 'quote l))
-	((eq ',. (car l)) (expand (car (cdr l))))
-	((eq ', (car l)) (list 'cons (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
-	((eq ',@ (car l)) (list 'append (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
+	((eq ',. (car l)) (car (cdr l)))
+	((eq ', (car l)) (list 'cons (car (cdr l)) (expand-qq (cdr (cdr l)))))
+	((eq ',@ (car l)) (list 'append (car (cdr l)) (expand-qq (cdr (cdr l)))))
 	(t (list 'cons (expand-qq (car l)) (expand-qq (cdr l))))))
 
 (defmacro (` . l) (expand-qq l))
