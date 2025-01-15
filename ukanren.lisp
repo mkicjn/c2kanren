@@ -1,5 +1,7 @@
 ;; uKanren using pointer equality comparisons only for variables, i.e., not using numbers at all
 
+(define expand ()) ; Suppress new macro expansion feature, which breaks below code
+
 ;; Supporting non-Kanren definitions
 
 ; More ergonomic definitions

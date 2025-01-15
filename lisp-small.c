@@ -445,7 +445,7 @@ int main()
 	for (;;) {
 		void *expr = read();
 		void *expand = assoc(sym_expand, defines);
-		if (expand != NOT_BOUND) {
+		if (IN(expand, cells)) {
 			expr = eval(list2(sym_expand, list2(sym_quote, expr)), NULL);
 			gc(&expr, &defines);
 			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)

@@ -658,7 +658,7 @@ int main()
 		// Evaluate expressions
 		void *expr = read();
 		void *expand = assoc(l_expand_sym, defines);
-		if (expand) {
+		if (IN(expand, cells)) {
 			expr = eval(list2(expand, list2(l_quote_sym, expr)), NULL);
 			gc(&expr, &defines);
 			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)

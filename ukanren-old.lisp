@@ -1,3 +1,5 @@
+(define expand ()) ; Suppress new macro expansion feature, which breaks below code
+
 ;; Supporting non-Kanren definitions
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 (define list (lambda args args))
