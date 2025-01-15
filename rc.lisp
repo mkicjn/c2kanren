@@ -101,3 +101,14 @@
 	(t (list 'cons (expand-qq (car l)) (expand-qq (cdr l))))))
 
 (defmacro (` . l) (expand-qq l))
+
+
+;; Support for short-circuiting and/or
+
+(defmacro (and first . rest)
+  (cond ((not rest) first)
+	(t (` cond (, first (and ,. rest)) (t ())))))
+
+(defmacro (or first . rest)
+  (cond ((not rest) first)
+	(t (` let ((_ , first)) (cond (_ _) (t (or ,. rest)))))))
