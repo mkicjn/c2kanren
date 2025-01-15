@@ -677,7 +677,7 @@ int main()
 		if (IN(res, cells) && car(res) == DEFINE) {
 			// Handle defines
 			defines = define(cadr(res), caddr(res), defines);
-			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(caddr(res)); printf("\n");)
+			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(caddr(res)); printf("\033[m\n");)
 		} else {
 			// Print results
 			DEBUG(printf("\033[32mEvaluated to: "));
@@ -686,6 +686,7 @@ int main()
 			printf("\n");
 		}
 		gc(&nil, &defines); // Destroy return value and keep global definitions
+		DEBUG(printf("\033[36mCells used: %ld\033[m\n", next_cell - cells);)
 	}
 }
 

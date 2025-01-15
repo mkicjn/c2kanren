@@ -463,7 +463,7 @@ int main()
 		if (car(expr) == sym_define) {
 			void *res = eval(caddr(expr), NULL);
 			defines = bind(cadr(expr), res, defines);
-			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\n");)
+			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\033[m\n");)
 		} else {
 			void *res = eval(expr, NULL);
 			DEBUG(printf("\033[32mEvaluated to: "));
@@ -472,6 +472,7 @@ int main()
 			printf("\n");
 		}
 		gc(&nil, &defines);
+		DEBUG(printf("\033[36mCells used: %ld\033[m\n", next_cell - cells);)
 	}
 	return 0;
 }
