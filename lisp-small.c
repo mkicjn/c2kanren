@@ -50,7 +50,7 @@
 	X("\006lambda", lambda) \
 	X("\006define", define) \
 	X("\004eval", eval) \
-	X("\005macro", macro) \
+	X("\005fexpr", fexpr) \
 	X("\006expand", expand)
 
 // Declare character pointer variables for each built-in symbol
@@ -361,7 +361,7 @@ void *evcon(void *cs, void *env)
 
 void *apply(void *f, void *args, void **env)
 {
-	if (caar(f) == sym_macro) // macro -> continue from result of evaluating body with bound args
+	if (caar(f) == sym_fexpr) // fexpr -> continue from result of evaluating body with bound args
 		return eval(caddar(f), pairlis(cadar(f), args, cdr(f)));
 	if (caar(f) == sym_lambda) { // lambda -> continue from body after evaluating and binding args
 		*env = pairlis(cadar(f), evlis(args, *env), cdr(f));
@@ -395,7 +395,7 @@ void *eval_base(void *x, void *env)
 		return eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
 	if (car(x) == sym_cons) // cons
 		return cons(eval(cadr(x), env), eval(caddr(x), env));
-	if (car(x) == sym_lambda || car(x) == sym_macro) // lambda/macro
+	if (car(x) == sym_lambda || car(x) == sym_fexpr) // lambda/fexpr
 		return cons(x, env);
 
 	// Otherwise, not a base case
@@ -415,7 +415,7 @@ void *eval(void *x, void *env)
 			x = eval(cadr(x), env);
 		else if (car(x) == sym_cond) // cond -> continue from expression given by evcon
 			x = evcon(x, env);
-		else // closure application -> continue from expression given by apply (lambda body / macro result)
+		else // closure application -> continue from expression given by apply (lambda body / fexpr result)
 			x = apply(eval(car(x), env), cdr(x), &env);
 		// GC for intermediate eval steps
 		gc(&x, &env);

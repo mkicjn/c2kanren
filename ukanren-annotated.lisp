@@ -5,8 +5,8 @@
 (define list (lambda args args))
 (define curry (lambda (f x) (lambda args (f x . args))))
 
-(define defun (macro (name args body) (list define name (list lambda args body))))
-(define defmacro (macro (name args body) (list define name (list macro args body))))
+(define defun (fexpr (name args body) (list define name (list lambda args body))))
+(define deffexpr (fexpr (name args body) (list define name (list fexpr args body))))
 
 (defun cadr (x) (car (cdr x)))
 (defun cddr (x) (cdr (cdr x)))
@@ -22,10 +22,10 @@
   (cond ((not a) b)
 	(t (cons (car a) (append (cdr a) b)))))
 
-(defmacro delay (x) (` lambda () , x))
-(defmacro force (x) (` , x))
+(deffexpr delay (x) (` lambda () , x))
+(deffexpr force (x) (` , x))
 
-(defmacro ` l
+(deffexpr ` l
   ((Y (lambda (rec)
 	(lambda (l)
 	  (cond ((not l) ())
@@ -189,9 +189,9 @@
 ; TODO: Continue adding comments
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Some macros to make things a little easier
+;; Some fexprs to make things a little easier
 
-(defmacro relation (args body)
+(deffexpr relation (args body)
   (` lambda , args
      (lambda (s/c)
        (delay (, body s/c)))))
@@ -200,21 +200,21 @@
   (cond ((not l) ())
 	(t (f (car l) (decons f (cdr l))))))
 
-(defmacro conj+ exprs
+(deffexpr conj+ exprs
   (decons (lambda (a d) (or (and d (` conj , a , d)) a)) exprs))
 
-(defmacro disj+ exprs
+(deffexpr disj+ exprs
   (decons (lambda (a d) (or (and d (` disj , a , d)) a)) exprs))
 
-(defmacro conde ls
+(deffexpr conde ls
   (let ((do-conj (lambda (l) (` conj+ ,. l)))
 	(do-disj (lambda (l) (` disj+ ,. l))))
     (do-disj (map do-conj ls))))
 
-(defmacro fresh1 (arg body)
+(deffexpr fresh1 (arg body)
   (` call/fresh (lambda (, arg) , body)))
 
-(defmacro fresh (args . body)
+(deffexpr fresh (args . body)
   (decons (lambda (a d) (` fresh1 , a , (or d (` conj+ ,. body)))) args))
 
 ;; Obtaining results from a stream
@@ -239,13 +239,13 @@
 	  (t (cons (reify (car v) s/c) (reify (cdr v) s/c))))))
 
 
-;; "Run" macros for executing goals ergonomically
+;; "Run" fexprs for executing goals ergonomically
 
-(defmacro run* (vs g)
+(deffexpr run* (vs g)
   (` map (curry reify (iota , (length vs)))
      (take* ((fresh , vs , g) init-s/c))))
 
-(defmacro run (n vs g)
+(deffexpr run (n vs g)
   (` map (curry reify (iota , (length vs)))
      (take , n ((fresh , vs , g) init-s/c))))
 

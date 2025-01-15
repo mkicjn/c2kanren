@@ -5,8 +5,8 @@
 (define list (lambda args args))
 (define curry (lambda (f x) (lambda args (f x . args))))
 
-(define defun (macro (name args body) (list define name (list lambda args body))))
-(define defmacro (macro (name args body) (list define name (list macro args body))))
+(define defun (fexpr (name args body) (list define name (list lambda args body))))
+(define deffexpr (fexpr (name args body) (list define name (list fexpr args body))))
 
 (defun cadr (x) (car (cdr x)))
 (defun cddr (x) (cdr (cdr x)))
@@ -22,7 +22,7 @@
   (cond ((not a) b)
 	(t (cons (car a) (append (cdr a) b)))))
 
-(defmacro ` l
+(deffexpr ` l
   ((Y (lambda (rec)
 	(lambda (l)
 	  (cond ((not l) ())
@@ -168,8 +168,8 @@
 
 (define promise? (lambda (x) (eq (type x) 'lambda)))
 
-(defmacro delay (x) (` lambda () , x))
-(defmacro force (x) (` , x))
+(deffexpr delay (x) (` lambda () , x))
+(deffexpr force (x) (` , x))
 
 (defun mplus (stream1 stream2)
   (cond ((not stream1) stream2)
@@ -218,14 +218,14 @@
 ; TODO: appendo
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Some macros to make things a little easier
+;; Some fexprs to make things a little easier
 
 ;(define relation
-;  (macro (args body)
+;  (fexpr (args body)
 ;	 (list lambda args
 ;	       (list lambda '(s/c)
 ;		     (list delay (list body 's/c))))))
-(defmacro relation (args body)
+(deffexpr relation (args body)
   (` lambda , args
      (lambda (s/c)
        (delay (, body s/c)))))
@@ -234,9 +234,9 @@
 ;(define cats (relation (x) (disj (== x 'cat) (cats x))))
 
 ;(define fresh1
-;  (macro (arg body)
+;  (fexpr (arg body)
 ;	 (list call/fresh (list lambda (list arg) body))))
-(defmacro fresh1 (arg body)
+(deffexpr fresh1 (arg body)
   (` call/fresh (lambda (, arg) , body)))
 
 ;(take 4 (pull ((fresh1 x (dogs x)) init-s/c)))
@@ -253,13 +253,13 @@
 
 ;(expand '(x y z) '(conj (== x 'cat) (== y 'dog) (== z 'turtle)))
 
-;(define fresh (macro (args body) (expand args body)))
+;(define fresh (fexpr (args body) (expand args body)))
 
 ;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
 
-;; TODO: Find a better way to define recursive macros
+;; TODO: Find a better way to define recursive fexprs
 ;(define fresh
-;  (macro (args body)
+;  (fexpr (args body)
 ;	 (let ((expand (lambda (self args body)
 ;			 (cond ((not args) body)
 ;			       (t (list call/fresh
@@ -268,7 +268,7 @@
 ;	   (expand expand args body))))
 
 ;(define fresh
-;  (macro args
+;  (fexpr args
 ;	 ((Y (lambda (expand)
 ;	      (lambda (args body)
 ;		(cond ((not args) body)
@@ -276,7 +276,7 @@
 ;			       (list lambda (list (car args))
 ;				     (expand (cdr args) body)))))))) . args)))
 
-(defmacro fresh (args body)
+(deffexpr fresh (args body)
   ((Y (lambda (expand)
 	(lambda (args)
 	  (cond ((not args) body)
@@ -285,14 +285,14 @@
 
 ;(run 1 (fresh (x y z) (conj (== x 'cat) (conj (== y 'dog) (== z 'turtle)))))
 
-(defmacro conj+ exprs
+(deffexpr conj+ exprs
   ((Y (lambda (expand)
 	(lambda (exprs)
 	  (cond ((not (cdr exprs)) (car exprs))
 		(t (` conj , (car exprs) , (expand (cdr exprs))))))))
    exprs))
 
-(defmacro disj+ exprs
+(deffexpr disj+ exprs
   ((Y (lambda (expand)
 	(lambda (exprs)
 	  (cond ((not (cdr exprs)) (car exprs))
@@ -363,22 +363,22 @@
 ;		      (== res (list as bs))
 ;		      (appendo as bs as-bs))))
 
-(defmacro run* (vs g)
+(deffexpr run* (vs g)
   (` map (curry reify (iota , (length vs)))
      (take* (pull ((fresh , vs , g) init-s/c)))))
 
-(defmacro run (n vs g)
+(deffexpr run (n vs g)
   (` map (curry reify (iota , (length vs)))
      (take , n (pull ((fresh , vs , g) init-s/c)))))
 
 ;(run* (a b) (appendo a b '(a b c d e f g)))
 
-(defmacro conde ls
+(deffexpr conde ls
   (let ((do-conj (lambda (l) (` conj+ ,. l)))
 	(do-disj (lambda (l) (` disj+ ,. l))))
     (do-disj (map do-conj ls))))
 
-(defmacro fresh (args . body)
+(deffexpr fresh (args . body)
   ((Y (lambda (expand)
 	(lambda (args)
 	  (cond ((not args) (` conj+ ,. body))

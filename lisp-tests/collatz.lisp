@@ -1,5 +1,6 @@
-; This Collatz sequence benchmark runs about 16% faster here than in the CHICKEN interpreter
-; It's still about 87x slower than paraforth, though ;)
+; This Collatz sequence benchmark used to run about 16% faster here than in the CHICKEN interpreter
+; It was still about 87x slower than paraforth, though ;)
+; TODO: Investigate why it's much slower now - definitions from rc.lisp slowing down the environment?
 
 ; Also included: a small demo of default variables
 (define collatz

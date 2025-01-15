@@ -83,7 +83,7 @@
 	X("\004cond", l_cond) \
 	X("\006lambda", l_lambda) \
 	X("\003let", l_let) \
-	X("\005macro", l_macro) \
+	X("\005fexpr", l_fexpr) \
 	X("\003and", l_and) \
 	X("\002or", l_or) \
 	X("\004type", l_type) \
@@ -121,7 +121,7 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define INCOMPLETE ((void *)2)  // used as part of TCO to signal eval to continue
 #define FORWARD ((void *)3)     // used as part of GC to signal copy to avoid duplication
 #define LAMBDA ((void *)4)      // used to distinguish closures from unevaluated lists
-#define MACRO ((void *)5)       // used to distinguish closures from unevaluated lists
+#define FEXPR ((void *)5)       // used to distinguish closures from unevaluated lists
 #define NUMBER ((void *)6)      // used for implementing numbers (see below)
 #define DEFINE ((void *)7)      // used to implement define as a primitive
 
@@ -213,11 +213,11 @@ static inline void *cdr(void *l)
 
 bool atom(void *l)
 {
-	// A value should be treated as an atom if it is not a cons cell, OR if it represents a lambda, macro, or number
+	// A value should be treated as an atom if it is not a cons cell, OR if it represents a lambda, fexpr, or number
 	if (!IN(l, cells))
 		return true;
 	void *t = *CAR(l);
-	return (t == LAMBDA || t == MACRO || t == NUMBER);
+	return (t == LAMBDA || t == FEXPR || t == NUMBER);
 }
 
 // Convenience macros
@@ -249,10 +249,10 @@ void print(void *x)
 	} else if (IN(x, cells) && (car(x) == NUMBER)) {
 		union l_num_u num = {.as_ptr = cdr(x)};
 		printf(NUM_FMT, num.as_num);
-	} else if (IN(x, cells) && (car(x) == LAMBDA || car(x) == MACRO)) {
-		// For closures, print the type (lambda/macro), args, body, and env
+	} else if (IN(x, cells) && (car(x) == LAMBDA || car(x) == FEXPR)) {
+		// For closures, print the type (lambda/fexpr), args, body, and env
 		printf("{");
-		print(car(x) == LAMBDA ? l_lambda_sym : l_macro_sym); // type
+		print(car(x) == LAMBDA ? l_lambda_sym : l_fexpr_sym); // type
 		printf(": ");
 		print(cadr(x)); // args
 		printf(" => ");
@@ -548,7 +548,7 @@ void *apply(void *f, void *args, void **cont, void **envp)
 	if (!IN(f, cells))
 		return ERROR;
 
-	if (car(f) == MACRO) { // macro -> don't eval args, but do eval result before continuing
+	if (car(f) == FEXPR) { // fexpr -> don't eval args, but do eval result before continuing
 		*cont = eval(caddr(f), pairlis(cadr(f), args, cadddr(f)));
 		return INCOMPLETE;
 	} else if (car(f) == LAMBDA) { // lambda -> eval args, continue with body
@@ -592,7 +592,7 @@ void *eval_step(void **cont, void **envp)
 		void *f = eval(car(x), env);
 		if (IN(f, prims)) // Primitive -> call C function
 			return (*(l_prim_t *)f)(cdr(x), cont, envp);
-		else // Non-primitive -> apply lambda or macro
+		else // Non-primitive -> apply lambda or fexpr
 			return apply(f, cdr(x), cont, envp);
 	}
 	// Unknown -> return as-is
@@ -728,11 +728,11 @@ void *l_let(void *args, void **cont, void **envp)
 	return INCOMPLETE;
 }
 
-void *l_macro(void *args, void **cont, void **envp)
+void *l_fexpr(void *args, void **cont, void **envp)
 {
 	(void)cont; // no TCO
 	REQUIRED(args, 2);
-	return list4(MACRO, car(args), cadr(args), *envp);
+	return list4(FEXPR, car(args), cadr(args), *envp);
 }
 
 void *l_and(void *args, void **cont, void **envp)
@@ -853,8 +853,8 @@ void *l_type(void *args, void **cont, void **envp)
 			return l_number_sym;
 		else if (t == LAMBDA)
 			return l_lambda_sym;
-		else if (t == MACRO)
-			return l_macro_sym;
+		else if (t == FEXPR)
+			return l_fexpr_sym;
 		else
 			return l_cons_sym;
 	} else {

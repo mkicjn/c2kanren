@@ -1,4 +1,4 @@
-; Quasiquotation macro demo
+; Quasiquotation fexpr demo
 (define list (lambda args args))
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 
@@ -13,7 +13,7 @@
 	  (t (cons (car a) (append (cdr a) b))))))
 
 (define quasi
-  (macro (l)
+  (fexpr (l)
 	 ((Y (lambda (rec)
 	       (lambda (l)
 		 (cond ((not l) ())
@@ -24,7 +24,7 @@
 
 ; Even more sugary
 (define `
-  (macro l
+  (fexpr l
 	 ((Y (lambda (rec)
 	       (lambda (l)
 		 (cond ((not l) ())

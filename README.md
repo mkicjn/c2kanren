@@ -3,7 +3,7 @@
 
 This is a small project inspired by a number of sources, but it does what it says on the tin.
 
-*Note: The experimental branch has been merged, introducing some additions and changes that are not yet be reflected below.*
+***Note: The experimental branch has been merged recently, introducing changes that are not yet reflected below.***
 
 The main files:
 * `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection
