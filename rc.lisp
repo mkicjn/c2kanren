@@ -46,15 +46,15 @@
 ;    (cons 'defun (lambda (defun name/args body)
 ;		   (list 'define
 ;			 (car name/args)
-;			 (list 'lambda (cdr name/args) body))))
+;			 (list 'lambda (cdr name/args) (expand body)))))
 ;    (cons 'defmacro (lambda (defmacro name/args body)
 ;		      (list 'define
 ;			    'expand-rules
 ;			    (list 'bind
 ;				  (list 'quote (car name/args))
-;				  (list 'lambda name/args body)
+;				  (list 'lambda name/args (expand body))
 ;				  'expand-rules))))
-;    (cons 'quote list) ; Do not expand within quotes
+;    (cons 'quote list) ; No recursion of `expand` implies no macro expansion within quotes
 ;    ))
 ;
 ;(define expand (lambda (term) (expand-all expand-rules term)))
@@ -63,11 +63,11 @@
 ;;; Support for `let`
 ;
 ;(defun (expand-let terms body)
-;  (cond ((not terms) body)
+;  (cond ((not terms) (expand body))
 ;	(t (list (list 'lambda
 ;		       (list (car (car terms)))
 ;		       (expand-let (cdr terms) body))
-;		 (car (cdr (car terms)))))))
+;		 (expand (car (cdr (car terms))))))))
 ;
 ;(defmacro (let terms body) (expand-let terms body))
 ;
@@ -86,9 +86,9 @@
 ;(defun (expand-qq l)
 ;  (cond ((not l) ())
 ;	((atom l) (list 'quote l))
-;	((eq ',. (car l)) (car (cdr l)))
-;	((eq ', (car l)) (list 'cons (car (cdr l)) (expand-qq (cdr (cdr l)))))
-;	((eq ',@ (car l)) (list 'append (car (cdr l)) (expand-qq (cdr (cdr l)))))
+;	((eq ',. (car l)) (expand (car (cdr l))))
+;	((eq ', (car l)) (list 'cons (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
+;	((eq ',@ (car l)) (list 'append (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
 ;	(t (list 'cons (expand-qq (car l)) (expand-qq (cdr l))))))
 ;
 ;(defmacro (` . l) (expand-qq l))

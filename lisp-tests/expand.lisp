@@ -56,23 +56,23 @@
     (cons 'defun (lambda (defun name/args body)
 		   (list 'define
 			 (car name/args)
-			 (list 'lambda (cdr name/args) body))))
+			 (list 'lambda (cdr name/args) (expand body)))))
     (cons 'defmacro (lambda (defmacro name/args body)
 		      (list 'define
 			    'expand-rules
 			    (list 'bind
 				  (list 'quote (car name/args))
-				  (list 'lambda name/args body)
+				  (list 'lambda name/args (expand body))
 				  'expand-rules))))
-    (cons 'quote list) ; Do not expand within quotes
+    (cons 'quote list) ; No recursion => do not expand within quotes
     ))
 
 (define expand (lambda (term) (expand-all expand-rules term)))
 
 ; Testing those macros
 
-(defmacro (left x y) x)
-(defmacro (right x y) y)
+(defmacro (left x y) (expand x))
+(defmacro (right x y) (expand y))
 
 (cons (left 'a 'b) (right 'a 'b))
 
@@ -83,20 +83,19 @@
 
 (assoc 'b '((a . 1) (b . 2) (c . 3)))
 
-(defmacro (middle a b c) b)
+(defmacro (middle a b c) (expand b))
 
-(cons (middle 'a 'b 'c) (right 'b 'c))
+(cons (middle 'a 'b 'c) (right 'a (left 'b 'c)))
 
 
 ;; Implementing `let` as a macro
 
-(define expand-let
-  (lambda (terms body)
-    (cond ((not terms) body)
-	  (t (list (list 'lambda
-			 (list (car (car terms)))
-			 (expand-let (cdr terms) body))
-		   (car (cdr (car terms))))))))
+(defun (expand-let terms body)
+  (cond ((not terms) (expand body))
+	(t (list (list 'lambda
+		       (list (car (car terms)))
+		       (expand-let (cdr terms) body))
+		 (expand (car (cdr (car terms))))))))
 
 (defmacro (let terms body) (expand-let terms body))
 
@@ -121,9 +120,9 @@
 (defun (expand-qq l)
   (cond ((not l) ())
 	((atom l) (list 'quote l))
-	((eq ',. (car l)) (car (cdr l)))
-	((eq ', (car l)) (list 'cons (car (cdr l)) (expand-qq (cdr (cdr l)))))
-	((eq ',@ (car l)) (list 'append (car (cdr l)) (expand-qq (cdr (cdr l)))))
+	((eq ',. (car l)) (expand (car (cdr l))))
+	((eq ', (car l)) (list 'cons (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
+	((eq ',@ (car l)) (list 'append (expand (car (cdr l))) (expand-qq (cdr (cdr l)))))
 	(t (list 'cons (expand-qq (car l)) (expand-qq (cdr l))))))
 
 (defmacro (` . l) (expand-qq l))
@@ -133,6 +132,6 @@
 (append '(1 2 3) '(4))
 
 (define a '(1 2 3))
-(define b '5)
+(define b '6)
 
-(` ,@ a 4 ,. b)
+(` ,@ a 4 , (left '5 '6) ,. b)
