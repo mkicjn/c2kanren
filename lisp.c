@@ -16,12 +16,21 @@
 #include <stddef.h>
 #include <time.h>
 
+// Compile-time variables
 #ifndef MAX_CELL_SPACE
 #define MAX_CELL_SPACE 100000
 #endif
 
 #ifndef MAX_SYM_SPACE
 #define MAX_SYM_SPACE 100000
+#endif
+
+#ifdef TRACE
+#undef TRACE
+#define TRACE(x) x
+#define DEBUG
+#else
+#define TRACE(x)
 #endif
 
 #ifdef DEBUG
@@ -356,7 +365,7 @@ void *number(char *s)
 	union l_num_u num;
 	if (sscanf(s+1, NUM_FMT, &num.as_num) > 0) { // (+1 to skip length byte)
 		next_sym = s;
-		DEBUG(printf("Parsed number %s -> " NUM_FMT "\n", s+1, num.as_num));
+		TRACE(printf("Parsed number %s -> " NUM_FMT "\n", s+1, num.as_num));
 		return cons(NUMBER, num.as_ptr);
 	}
 	return NULL;
@@ -447,7 +456,7 @@ void gc(void **ret, void **env)
 	if (next_cell == pre_eval) // Elide useless calls
 		return;
 #ifndef DISABLE_GC
-	DEBUG(clock_t start = clock();)
+	TRACE(clock_t start = clock();)
 	// Copy the return value and environment as needed, offsetting cells to match their post-GC position
 	void **pre_copy = next_cell;
 	ptrdiff_t diff = pre_copy - pre_eval;
@@ -460,10 +469,10 @@ void gc(void **ret, void **env)
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
-	DEBUG(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
-	DEBUG(printf("Cells used: %ld -> %ld (%ld copied, %.3fms)\n", pre_copy - cells, next_cell - cells, copy_size, ms);)
+	TRACE(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	TRACE(printf("Cells used: %ld -> %ld (%ld copied, %.3fms)\n", pre_copy - cells, next_cell - cells, copy_size, ms);)
 #else
-	DEBUG(printf("Cells used: %ld\n", next_cell - cells);)
+	TRACE(printf("Cells used: %ld\n", next_cell - cells);)
 #endif
 }
 
@@ -593,9 +602,9 @@ void *eval_step(void **cont, void **envp)
 void *eval(void *x, void *env)
 {
 	// Tail-call optimized eval
-	DEBUG(clock_t start = clock();)
-	DEBUG(static int level = 0; level++;)
-	DEBUG(printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
+	TRACE(clock_t start = clock();)
+	TRACE(static int level = 0; level++;)
+	TRACE(printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
 
@@ -611,11 +620,11 @@ void *eval(void *x, void *env)
 		ret = eval(x, env);
 		break;
 #endif
-		DEBUG(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
+		TRACE(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
 	}
-	DEBUG(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
-	DEBUG(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf(" (%.3fms)\n", ms);)
-	DEBUG(level--;)
+	TRACE(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	TRACE(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf(" (%.3fms)\n", ms);)
+	TRACE(level--;)
 	
 	if (ret == ERROR) {
 		printf("\033[33mWarning: error evaluating ");
@@ -658,6 +667,7 @@ int main()
 		// Evaluate expressions
 		void *expr = read();
 		void *expand = assoc(l_expand_sym, defines);
+		DEBUG(printf("\033[34mRead: "); print(expr); printf("\033[m\n");)
 		if (IN(expand, cells)) {
 			expr = eval(list2(expand, list2(l_quote_sym, expr)), NULL);
 			gc(&expr, &defines);
@@ -667,9 +677,10 @@ int main()
 		if (IN(res, cells) && car(res) == DEFINE) {
 			// Handle defines
 			defines = define(cadr(res), caddr(res), defines);
+			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(caddr(res)); printf("\n");)
 		} else {
 			// Print results
-			DEBUG(printf("\033[32m"));
+			DEBUG(printf("\033[32mEvaluated to: "));
 			print(res);
 			DEBUG(printf("\033[m"));
 			printf("\n");

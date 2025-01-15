@@ -6,12 +6,21 @@
 #include <stddef.h>
 #include <time.h>
 
+// Compile-time variables
 #ifndef MAX_CELL_SPACE
 #define MAX_CELL_SPACE 100000
 #endif
 
 #ifndef MAX_SYM_SPACE
 #define MAX_SYM_SPACE 100000
+#endif
+
+#ifdef TRACE
+#undef TRACE
+#define TRACE(x) x
+#define DEBUG
+#else
+#define TRACE(x)
 #endif
 
 #ifdef DEBUG
@@ -290,7 +299,7 @@ void gc(void **ret, void **env)
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
-	DEBUG(printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);)
+	TRACE(printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);)
 }
 
 void *bind(void *k, void *v, void *env)
@@ -397,7 +406,7 @@ void *eval(void *x, void *env)
 {
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
-	DEBUG(static int level = 0; level++; printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
+	TRACE(static int level = 0; level++; printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
 
 	// Trampoline
 	void *ret;
@@ -410,7 +419,7 @@ void *eval(void *x, void *env)
 			x = apply(eval(car(x), env), cdr(x), &env);
 		// GC for intermediate eval steps
 		gc(&x, &env);
-		DEBUG(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
+		TRACE(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
 	}
 
 	// GC for result
@@ -421,7 +430,7 @@ void *eval(void *x, void *env)
 		print(x);
 		printf("`\033[m\n");
 	}
-	DEBUG(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf("\n"); level--;)
+	TRACE(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf("\n"); level--;)
 	return ret;
 }
 
@@ -444,6 +453,7 @@ int main()
 	void *nil = NULL;
 	for (;;) {
 		void *expr = read();
+		DEBUG(printf("\033[34mRead: "); print(expr); printf("\033[m\n");)
 		void *expand = assoc(sym_expand, defines);
 		if (IN(expand, cells)) {
 			expr = eval(list2(sym_expand, list2(sym_quote, expr)), NULL);
@@ -451,10 +461,12 @@ int main()
 			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)
 		}
 		if (car(expr) == sym_define) {
-			defines = bind(cadr(expr), eval(caddr(expr), NULL), defines);
+			void *res = eval(caddr(expr), NULL);
+			defines = bind(cadr(expr), res, defines);
+			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\n");)
 		} else {
 			void *res = eval(expr, NULL);
-			DEBUG(printf("\033[32m"));
+			DEBUG(printf("\033[32mEvaluated to: "));
 			print(res);
 			DEBUG(printf("\033[m"));
 			printf("\n");
