@@ -41,10 +41,9 @@ Here's a breakdown of the interpreter's design, in general and relative to tinyl
     * Note: `lisp-small` avoids some complexity by evaluating primitives as special forms in a base case of eval, somewhat like SectorLISP, but retaining TCO
 * Copying GC with pointer offsetting for cells - much like SectorLISP (but upgraded to use forwarding pointers and apply to the environment) and much unlike tinylisp (which simply resets a free-pointer at the toplevel)
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
-* Support for fexprs - exactly like tinylisp, which calls them "macros" instead; this might have been by coincidence, can't remember
-  * These are no longer used in any capacity by `ukanren.lisp` or `ukanren-small.lisp`.
-  * This feature is retained only for legacy reasons and because it introduces little complexity.
-* Support for read-time macro expansion - unlike either, which do not support "true" macros
+* Support for macro expansion at read time - unlike tinylisp or SectorLISP, neither of which support a macro expansion phase
+* Support for fexprs - exactly like what tinylisp refers to as macros, and naturally unlike SectorLISP, which doesn't support macros at all
+  * This project used to also refer to these as "macros", but they have since been renamed and phased out by `ukanren.lisp` and `ukanren-small.lisp` in favor of read-time macros.
 
 Language-wise, it's arguably closer in spirit to Scheme than to say, Common Lisp, for a variety of reasons.
 (Hence why .gitattributes overrides the language to Scheme - have to pick something, right?)
@@ -71,8 +70,8 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Fexprs work very similarly to lambdas (and can be closures), e.g.,
   * `((lambda (x) x) (cons a b))` ~> `((lambda (x) x) (eval '(cons a b)))`
   * `((fexpr (x) x) (cons a b))` ~> `(eval ((lambda (x) x) '(cons a b)))`
-* Macros are offered via the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
-  * The implementation defined in `rc.lisp` applies rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
+* Macros are implemented via a hook in the form of the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
+  * The version of `expand` provided by `rc.lisp` works by applying rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
 
 ## The Kanren
 
