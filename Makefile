@@ -1,4 +1,4 @@
-CFLAGS=-O3 -Wall -Wextra -pedantic
+CFLAGS=-Os -Wall -Wextra -pedantic
 LDFLAGS=-lm
 
 ALL=lisp lisp-small

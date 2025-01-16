@@ -1,36 +1,44 @@
 # c2kanren
-**A simple Lisp interpreter with full TCO and GC, from scratch, running microKanren**
+**A very small but capable Lisp interpreter, with TCO, GC, and a working uKanren port**
 
-This is a small project inspired by a number of sources, but it does what it says on the tin.
+This is a project inspired by a number of sources, but it does what it says on the tin.
 
-***Note: The experimental branch has been merged recently, introducing changes that are not yet reflected below.***
+When compiled with `-Os` on a modern Linux OS, the `lisp-small` implementation is just 1.7 KB larger than a Hello World executable.
+Yet, it remains powerful enough to meaningfully host a uKanren implementation without fear of exhausting memory or stack space.
 
 The main files:
 * `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection
-* `ukanren.lisp` - a port of microKanren to that Lisp, with useful macros and reification
+* `rc.lisp` - a "run commands" style script executed by the interpreter automatically; contains important macro definitions
+* `ukanren.lisp` - a port of uKanren to that Lisp, including ergonomic macros and support for reification
 
 ## The Lisp
 
-The Lisp interpreter here isn't that small or fast, but what's important is that it works very simply and has the important optimizations necessary to make deeply-recursive closures usable.
+The Lisp interpreter here isn't particularly fast, but what's important is that it is small and simple while retaining the optimizations necessary to make deeply-recursive closures usable.
 Initially, the goal was to keep it simple enough that it could be ported into even lower level languages, such as my main project language, [paraforth](https://github.com/mkicjn/paraforth).
-That goal is still there, but it _has_ taken the backseat slightly to prioritize just getting everything to work well in the first place.
-A minimization/simplification pass might be due in the future.
-For instance, about 25% of the source code is just for arithmetic primitives _alone_, which is stunning.
-If it were easier to do without numbers, I would be keen on deleting those.
+That goal has not been completely forgotten, but it _has_ taken the backseat to prioritize getting everything to work well in the first place.
 
-Implementation-wise, it was originally modeled a little bit after both SectorLISP and tinylisp, combining interesting aspects of the two with some ideas of my own.
-However, over time (and especially as I worked through the challenges of combining TCO and GC), things strayed further and further from either two and got a little more original.
+The new `lisp-small` interpreter is a practical attempt at returning to those minimalistic roots without compromising uKanren support.
+As proof, `ukanren-small.lisp` is a variant of `ukanren.lisp` which has been (barely) modified to run on that version of the interpreter.
+Notes have been added to the below information to indicate differences between the two.
 
-Here's a breakdown of this implementation's design, in general and relative to the other two:
-* Lexerless recursive descent parser with 1 character lookahead - original, but probably similar to either one as it is an obvious approach
+Implementation-wise, the interpreter was originally modeled a bit after SectorLISP and tinylisp, combining interesting aspects of the two with new ideas of my own.
+However, over time (and especially as a result of working through various design challenges), things have strayed away from either two and gotten more original.
+
+Here's a breakdown of the interpreter's design, in general and relative to tinylisp and SectorLisp:
+* Lexerless recursive descent parser with 1 character lookahead - original, but probably similar to either one since it's such an obvious approach
 * Symbols interned as Forth-style counted strings - original
 * Types distinguished internally by membership in static array space - unlike tinylisp (which uses NaN boxing) or SectorLISP (which uses comparison to a redefined NIL)
-  * Non-symbol atoms represented by a list/pair with a sentinel value to take advantage of GC - unlike either (?)
+  * Non-symbol atoms represented by a list/pair with a sentinel value at the head to take advantage of cell GC - unlike either
+    * Note: `lisp-small` changes this by dropping support for non-symbol atoms. Lambdas/fexprs are consed with their environment, like tinylisp.
 * Interpreter structured like McCarthy's meta-circular eval - like either SectorLISP or tinylisp (before TCO)
-  * TCO implemented via a trampoline while keeping the interpreter structure mostly intact - unlike either tinylisp (which folds a lot of code into eval) or SectorLISP (which lacks TCO)
+  * TCO implemented via a trampoline while keeping the interpreter structure mostly intact - somewhat like tinylisp (though it's difficult to tell), but much unlike SectorLISP (which lacks TCO)
+    * Note: `lisp-small` avoids some complexity by evaluating primitives as special forms in a base case of eval, somewhat like SectorLISP, but retaining TCO
 * Copying GC with pointer offsetting for cells - much like SectorLISP (but upgraded to use forwarding pointers and apply to the environment) and much unlike tinylisp (which simply resets a free-pointer at the toplevel)
 * Variadicity/argument pasting by dot notation - exactly like tinylisp; don't know about SectorLISP
-* Macros work like lambdas - exactly like tinylisp; can't remember if this similarity was intentional
+* Support for fexprs - exactly like tinylisp, which calls them "macros" instead; this might have been by coincidence, can't remember
+  * These are no longer used in any capacity by `ukanren.lisp` or `ukanren-small.lisp`.
+  * This feature is retained only for legacy reasons and because it introduces little complexity.
+* Support for read-time macro expansion - unlike either, which do not support "true" macros
 
 Language-wise, it's arguably closer in spirit to Scheme than to say, Common Lisp, for a variety of reasons.
 (Hence why .gitattributes overrides the language to Scheme - have to pick something, right?)
@@ -40,25 +48,29 @@ In a nutshell, the implementation here is as if you took a basic Scheme, renamed
 Here's a more intensive breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (single namespace for both variables and functions)
 * Simple `define`s only by default (no `(define (f args) body)`; use `(define f (lambda args body))`)
-  * More ergonomic definitions are possible with macro definitions
+  * More ergonomic definitions (e.g., `(defun/defmacro (f args) body)` are enabled by macro definitions in `rc.lisp`.
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
-* Syntactic sugar for `'x -> (quote x)` but no built-in backquote-unquote (this is also done with macros)
+* Syntactic sugar for `'x -> (quote x)` but no built-in backquote-unquote (this is also enabled by macros in `rc.lisp`)
 * The semantics of nil are somewhere between CL and Scheme:
-  * Like CL, `()` is the only "false" value and `(not ())` is `t`.
-  * Like Scheme, `nil` is not recognized, `()` is not a symbol, and `(car/cdr ())` is an error.
-* Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` ~= `ptr == NULL`)
+  * Like CL, `()` self-evaluates, `(not ())` is `t`, and `(car/cdr ())` is `()`.
+  * Like Scheme, `nil` does not self-evaluate, `()` is the only "false" value, and `()` is not a symbol.
+* Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` implies `ptr == NULL`)
   * Default names: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
 * `let` works exactly the same as a Scheme `let*`
 * Variadic arithmetic functions and `and`/`or` as in either CL or Scheme (note: use `mod` as in CL, not `modulo` as in Scheme)
+  * Note: `lisp-small` is purely symbolic and does not support numbers or arithmetic.
 * For type-checking, the `type` primitive returns a value (one of `symbol`, `cons`, `lambda`, `macro`, `primitive`, or `()`) which can be compared with `eq`
-* Macros work very similarly to lambdas (and can be closures), e.g.,
+  * Note: `lisp-small` does not support `type`.
+* Fexprs work very similarly to lambdas (and can be closures), e.g.,
   * `((lambda (x) x) (cons a b))` ~> `((lambda (x) x) (eval '(cons a b)))`
-  * `((macro (x) x) (cons a b))` ~> `(eval ((lambda (x) x) '(cons a b)))`
+  * `((fexpr (x) x) (cons a b))` ~> `(eval ((lambda (x) x) '(cons a b)))`
+* Macros are offered via the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
+  * The implementation defined in `rc.lisp` applies rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
 
 ## The Kanren
 
-The microKanren port is patterned mostly after a talk by its creators, and also using the original paper as a reference occasionally.
+The uKanren port is patterned mostly after a talk by its creators, and also using the original paper as a reference occasionally.
 The original work that followed that talk a little more closely is in `ukanren-old.lisp`, and has tons of code commented out where things were being tested and updated.
 I figured it might be useful to keep that old body of code around as a reference, but the other two versions are probably much better to read and use.
 The code in `ukanren-annotated.lisp` is a cleaned up and _very, very heavily_ commented version of `ukanren-old.lisp` originally produced to help decipher some of the complexity.
