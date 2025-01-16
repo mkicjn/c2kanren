@@ -1,15 +1,21 @@
 # c2kanren
-**A very small but capable Lisp interpreter, with TCO, GC, and a working uKanren port**
+**A very small Lisp interpreter powerful enough to host microKanren**
 
-This is a project inspired by a number of sources, but it does what it says on the tin.
+This project was inspired by a number of sources, and it does what it says on the tin:
+build from an imperative language (C), to a functional language (Lisp), to a logic programming language (microKanren).
 
-When compiled with `-Os` on a modern Linux OS, the `lisp-small` implementation is just 1.7 KB larger than a Hello World executable.
-Yet, it remains powerful enough to meaningfully host a uKanren implementation without fear of exhausting memory or stack space.
+A key element of this approach is strong support for tail-call optimization (TCO) and aggressive garbage collection (GC).
+
+When compiled with `gcc -Os` on a modern Linux OS, the `lisp-small` implementation is just 1.7 KB larger than Hello World (17.6 KB vs. 15.9 KB).
+Yet, it remains powerful enough to meaningfully host its own port of microKanren - without fear of exhausting memory or stack space.
 
 The main files:
-* `lisp.c` - a simple Lisp interpreter with full tail-call optimization and aggressive garbage collection
+* `lisp.c` - a simple Lisp interpreter with the optimizations described above
 * `rc.lisp` - a "run commands" style script executed by the interpreter automatically; contains important macro definitions
-* `ukanren.lisp` - a port of uKanren to that Lisp, including ergonomic macros and support for reification
+* `ukanren.lisp` - a port of microKanren to that Lisp, including ergonomic macros and support for reification
+
+To see it work, first build with `make`, then run with `cat ukanren.lisp | ./lisp`, `cat ukanren-annotated.lisp | ./lisp`, or `cat ukanren-small.lisp | ./lisp-small`.
+This loads one of the microKanren ports, defines the *append* relation, and demonstrates it in both the cliche manner and using a few results from the most general query.
 
 ## The Lisp
 
@@ -17,7 +23,7 @@ The Lisp interpreter here isn't particularly fast, but what's important is that 
 Initially, the goal was to keep it simple enough that it could be ported into even lower level languages, such as my main project language, [paraforth](https://github.com/mkicjn/paraforth).
 That goal has not been completely forgotten, but it _has_ taken the backseat to prioritize getting everything to work well in the first place.
 
-The new `lisp-small` interpreter is a practical attempt at returning to those minimalistic roots without compromising uKanren support.
+The new `lisp-small` interpreter is a practical attempt at returning to those minimalistic roots without compromising microKanren support.
 As proof, `ukanren-small.lisp` is a variant of `ukanren.lisp` which has been (barely) modified to run on that version of the interpreter.
 Notes have been added to the below information to indicate differences between the two.
 

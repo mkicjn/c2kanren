@@ -193,4 +193,4 @@
 
 ;; Testing it on the most general query of `appendo`
 
-(run 3 (a b l) (appendo a b l))
+(run 5 (a b l) (appendo a b l))

@@ -262,6 +262,8 @@
 
 (run* (a b) (appendo a b '(A B C D E F G)))
 
+(run 5 (a b c) (appendo a b c))
+
 ;; TODO: Finish adding comments
 ;; TODO: Is it worth combining the commented versions in with the old version to illustrate the development over time?
 ;; TODO: Go further - attributed variables? evalo??

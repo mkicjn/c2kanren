@@ -195,4 +195,4 @@
 
 ;; Testing it on the most general query of `appendo`
 
-(run '(t t t) (a b l) (appendo a b l))
+(run '(t t t t t) (a b l) (appendo a b l))
