@@ -85,12 +85,13 @@
 
 (defun (ident x) x)
 
-(defun (append-cont l1 l2 cont)
-  (cond ((not l1) (cont l2))
-	(t (append-cont (cdr l1) l2 (lambda (x) (cont (cons (car l1) x)))))))
+(defun (append-cont cont l1 l2 . ls)
+  (cond ((not l1) (cond ((not ls) (cont l2))
+			(t (append-cont cont l2 . ls))))
+	(t (append-cont (lambda (x) (cont (cons (car l1) x))) (cdr l1) l2 . ls))))
 
-(defun (append l1 l2)
-  (append-cont l1 l2 ident))
+(defun (append . ls)
+  (append-cont ident . ls))
 
 (defun (expand-qq l)
   (cond ((not l) ())
