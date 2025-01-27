@@ -72,13 +72,18 @@
 ;; Support for let-bindings
 
 (defun (expand-let bindings body)
+  (cons (list 'lambda (map (lambda (x) (car x)) bindings) body)
+	(map (lambda (x) (car (cdr x))) bindings)))
+
+(defun (expand-let* bindings body)
   (cond ((not bindings) body)
 	(t (list (list 'lambda
 		       (list (car (car bindings)))
-		       (expand-let (cdr bindings) body))
+		       (expand-let* (cdr bindings) body))
 		 (car (cdr (car bindings)))))))
 
-(defmacro (let bindings body) (expand-let bindings body))
+(defmacro (let  bindings body) (expand-let  bindings body))
+(defmacro (let* bindings body) (expand-let* bindings body))
 
 
 ;; Support for quasiquotation

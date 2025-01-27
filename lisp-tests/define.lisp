@@ -8,7 +8,7 @@ a
 
 ; (Testing the intended purpose)
 (define list (lambda args args))
-(define defun (macro (name args body)
+(define defun (fexpr (name args body)
 		     (list define name
 			   (list lambda args body))))
 (defun ident (x) x)
@@ -19,7 +19,7 @@ a
 (define list (lambda args args))
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 (define define+
-  (macro (args body)
+  (fexpr (args body)
 	 (cons define
 	       ((Y (lambda (expand)
 		     (lambda (args body)

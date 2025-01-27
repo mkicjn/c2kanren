@@ -62,7 +62,7 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` implies `ptr == NULL`)
   * Default names: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
-* `let` works exactly the same as a Scheme `let*`
+* `let` and `let*` work exactly the same as in either CL or Scheme
 * Variadic arithmetic functions and `and`/`or` as in either CL or Scheme (note: use `mod` as in CL, not `modulo` as in Scheme)
   * Note: `lisp-small` is purely symbolic and does not support numbers or arithmetic.
 * For type-checking, the `type` primitive returns a value (one of `symbol`, `cons`, `lambda`, `macro`, `primitive`, or `()`) which can be compared with `eq`

@@ -10,7 +10,7 @@
 
 
 (defmacro (destructure vars vals body)
-  (` let ((_ , vals) ,@ (sym-locs vars (lambda () '_))) , body))
+  (` let ((_ , vals)) (let , (sym-locs vars (lambda () '_)) , body)))
 
 
 (expand '(destructure (a (b c)) (cons 'x (cons (cons 'y (cons 'z ())) ()))
