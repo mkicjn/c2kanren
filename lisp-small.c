@@ -62,11 +62,6 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 #define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
 #define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
 
-// Values returned on certain errors
-#define NOT_BOUND  ERROR  // returned when unbound variables are looked up
-#define NOT_CONS   NULL   // returned on invalid car/cdr operations
-#define EVAL_NIL   NULL   // returned when evaluating the empty list
-
 
 // **************** Memory regions and region-based type inference ****************
 
@@ -102,12 +97,16 @@ void *cons(void *x, void *y)
 
 static inline void *car(void *l)
 {
-	return IN(l, cells) ? *CAR(l) : NOT_CONS;
+	if (!l)
+		return NULL;
+	return IN(l, cells) ? *CAR(l) : ERROR;
 }
 
 static inline void *cdr(void *l)
 {
-	return IN(l, cells) ? *CDR(l) : NOT_CONS;
+	if (!l)
+		return NULL;
+	return IN(l, cells) ? *CDR(l) : ERROR;
 }
 
 // Convenience macros
@@ -329,7 +328,7 @@ void *assoc(void *s, void *env)
 			return cdar(kvps);
 	if (env != defines)
 		return assoc(s, defines);
-	return NOT_BOUND;
+	return ERROR;
 }
 
 void *evlis(void *l, void *env)
@@ -374,7 +373,7 @@ void *eval_base(void *x, void *env)
 {
 	// Handle atomic expressions
 	if (!x) // ()
-		return EVAL_NIL;
+		return NULL;
 	if (x == sym_t) // t
 		return x;
 	if (IN(x, syms)) // symbol
@@ -414,7 +413,7 @@ void *eval(void *x, void *env)
 		if (car(x) == sym_eval) // eval -> continue from expression given by evaluated argument
 			x = eval(cadr(x), env);
 		else if (car(x) == sym_cond) // cond -> continue from expression given by evcon
-			x = evcon(x, env);
+			x = evcon(cdr(x), env);
 		else // closure application -> continue from expression given by apply (lambda body / fexpr result)
 			x = apply(eval(car(x), env), cdr(x), &env);
 		// GC for intermediate eval steps

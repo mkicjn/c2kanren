@@ -127,7 +127,7 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Values returned on certain errors
 #define NOT_BOUND  ERROR  // returned when unbound variables are looked up
-#define NOT_CONS   NULL   // returned on invalid car/cdr operations
+#define NOT_CONS   ERROR  // returned on invalid car/cdr operations
 #define EVAL_NIL   NULL   // returned when evaluating the empty list
 
 // How exactly to represent numeric values is difficult, since they must be distinguishable from pointers.
@@ -781,6 +781,8 @@ void *l_car(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
+	if (!car(args))
+		return NULL;
 	return atom(car(args)) ? NOT_CONS : caar(args);
 }
 
@@ -789,6 +791,8 @@ void *l_cdr(void *args, void **cont, void **envp)
 	(void)cont; // no TCO
 	args = evlis(args, *envp); // evaluate args
 	REQUIRED(args, 1);
+	if (!car(args))
+		return NULL;
 	return atom(car(args)) ? NOT_CONS : cdar(args);
 }
 

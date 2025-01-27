@@ -49,7 +49,7 @@
   (let ((name (func-name expr)))
     (cond (name (cons (cons (func-lambda expr) name)
 		      (extract-funcs (func-body expr))))
-	  ((not expr) ())
+	  ((atom expr) ())
 	  (t (append (extract-funcs (car expr))
 		     (extract-funcs (cdr expr)))))))
 
@@ -90,35 +90,31 @@
 
 ;; Transpile function contents
 
-(define transpile-cond
-  (lambda (ls l)
-    (cond ((not l) 'NULL)
-	  ((eq (caar l) t) (transpile-expr ls (cadar l)))
-	  (t (list (transpile-expr ls (caar l)) '? (transpile-expr ls (cadar l))
-		   ': (transpile-cond ls (cdr l)))))))
+(defun (transpile-cond ls l)
+  (cond ((not l) 'NULL)
+	((eq (caar l) t) (transpile-expr ls (cadar l)))
+	(t (list (transpile-expr ls (caar l)) '? (transpile-expr ls (cadar l))
+		 ': (transpile-cond ls (cdr l))))))
 
-(define transpile-expr
-  (lambda (ls x)
-    (cond ((not x) 'NULL)
-	  ((eq x t) 'sym_t)
-	  ((atom x) x)
-	  ((eq (car x) 'eq) (list (transpile-expr ls (cadr x)) '== (transpile-expr ls (caddr x))))
-	  ((eq (car x) 'quote) (list 'quote (list '" (cadr x) '")))
-	  ((eq (car x) 'lambda) (cdr (assoc x ls)))
-	  ((eq (car x) 'cond) (transpile-cond ls (cdr x)))
-	  ((eq (car x) 'not) (list '! (transpile-expr ls (cadr x))))
-	  ((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr ls) (cdr x)))))
-	  (t (list (transpile-expr ls (car x)) (join ', (map (curry transpile-expr ls) (cdr x))))))))
+(defun (transpile-expr ls x)
+  (cond ((not x) 'NULL)
+	((eq x t) 'sym_t)
+	((atom x) x)
+	((eq (car x) 'eq) (list (transpile-expr ls (cadr x)) '== (transpile-expr ls (caddr x))))
+	((eq (car x) 'quote) (list 'quote (list '" (cadr x) '")))
+	((eq (car x) 'lambda) (cdr (assoc x ls)))
+	((eq (car x) 'cond) (transpile-cond ls (cdr x)))
+	((eq (car x) 'not) (list '! (transpile-expr ls (cadr x))))
+	((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr ls) (cdr x)))))
+	(t (list (transpile-expr ls (car x)) (join ', (map (curry transpile-expr ls) (cdr x)))))))
 
-(define transpile-lambdas0
-  (lambda (ls0 ls)
-    (cond ((not ls) ())
-	  (t (let ((l (caar ls)) (name (cdar ls)))
-	       (append (list 'void '* name (join ', (cadr l)) '{ 'return (transpile-expr ls0 (caddr l)) '})
-		       (transpile-lambdas0 ls0 (cdr ls))))))))
+(defun (transpile-lambdas0 ls0 ls)
+  (cond ((not ls) ())
+	(t (let ((l (caar ls)) (name (cdar ls)))
+	     (append (list 'void '* name (join ', (cadr l)) '{ 'return (transpile-expr ls0 (caddr l)) '})
+		     (transpile-lambdas0 ls0 (cdr ls)))))))
 
-(define transpile-lambdas
-  (lambda (ls) (transpile-lambdas0 ls ls)))
+(defun (transpile-lambdas ls) (transpile-lambdas0 ls ls))
 
  
 ; Testing on the same sample as before
