@@ -59,12 +59,12 @@
 (define append-sample '(
 
 (define ident (lambda (x) x))
-(define append-cps
+(define append_cps
   (lambda (cont l1 l2)
     (cond ((not l1) (cont l2))
-	  (t (append2 (lambda (x) (cont (cons (car l1) x)))
+	  (t (append_cps (lambda (x) (cont (cons (car l1) x)))
 		      (cdr l1) l2)))))
-(define append (lambda (l1 l2) (append-cps ident l1 l2)))
+(define append (lambda (l1 l2) (append_cps ident l1 l2)))
 
 
 ))
@@ -88,6 +88,39 @@
 (rename-lambdas (extract-funcs append-sample) anon-names)
 
 
+;; Extract all free values from a function
+
+(defun (in x xs)
+  (cond ((not xs) ())
+	((eq x (car xs)) t)
+	(t (in x (cdr xs)))))
+
+(defun (free-vars-acc args expr acc)
+  (cond ((not expr) acc)
+	((atom expr) (cond ((in expr args) acc)
+			   ((in expr acc) acc)
+			   (t (cons expr acc))))
+	((eq (car expr) 'quote) acc)
+	((eq (car expr) 'lambda)
+	    (free-vars-acc (append (func-args expr) args)
+			   (func-body expr) acc))
+	(t (free-vars-acc args (car expr)
+		      (free-vars-acc args (cdr expr) acc)))))
+
+(defun (free-vars args expr) (free-vars-acc args expr ()))
+
+
+; Testing free variable extraction
+
+(define primitives '(car cdr cons t atom eq cond not))
+
+(let* ((funcs (rename-lambdas (extract-funcs append-sample) anon-names))
+       (func-names (map (lambda (x) (cdr x)) funcs))
+       (all-names (append primitives func-names))
+       (free-vars (map (lambda (x) (cons (cdr x) (free-vars all-names (car x)))) funcs)))
+  (list funcs free-vars))
+
+
 ;; Transpile function contents
 
 (defun (transpile-cond ls l)
@@ -102,7 +135,7 @@
 	((atom x) x)
 	((eq (car x) 'eq) (list (transpile-expr ls (cadr x)) '== (transpile-expr ls (caddr x))))
 	((eq (car x) 'quote) (list 'quote (list '" (cadr x) '")))
-	((eq (car x) 'lambda) (cdr (assoc x ls)))
+	((eq (car x) 'lambda) (list 'CLOSURE (list (cdr (assoc x ls)))))
 	((eq (car x) 'cond) (transpile-cond ls (cdr x)))
 	((eq (car x) 'not) (list '! (transpile-expr ls (cadr x))))
 	((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr ls) (cdr x)))))
