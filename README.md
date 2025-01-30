@@ -14,8 +14,9 @@ The main files:
 * `rc.lisp` - a "run commands" style script executed by the interpreter automatically; contains important macro definitions
 * `ukanren.lisp` - a port of microKanren to that Lisp, including ergonomic macros and support for reification
 
-To see it work, first build with `make`, then run with `cat ukanren.lisp | ./lisp`, `cat ukanren-annotated.lisp | ./lisp`, or `cat ukanren-small.lisp | ./lisp-small`.
-This loads one of the microKanren ports, defines the *append* relation, and demonstrates it in both the cliche manner and using a few results from the most general query.
+To see it work, simply clone the repo and run `./ukanren_demo.sh`.
+This compiles the interpreters and runs each of the microKanren ports, demonstrating the canonical `appendo` relation both in the cliche manner and using the most general query.
+The first of these also displays each input expression before its result for reference.
 
 ## The Lisp
 

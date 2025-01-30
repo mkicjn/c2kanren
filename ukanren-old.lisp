@@ -399,4 +399,6 @@ appendo
 
 (run* (a b) (appendo a b '(A B C D E F G)))
 
+(run 5 (a b c) (appendo a b c))
+
 ;; TODO: conde and other miniKanren primitives

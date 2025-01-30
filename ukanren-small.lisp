@@ -174,6 +174,8 @@
 			   (== as-bs (cons a s-bs))
 			   (appendo s bs s-bs))))))
 
+appendo
+
 (run* (a b) (appendo a b '(A B C D E F G)))
 
 

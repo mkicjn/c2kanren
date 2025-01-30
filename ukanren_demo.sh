@@ -7,7 +7,8 @@ demo () {
 }
 
 make || exit 1
-demo ukanren-small.lisp ./lisp-small
+echo
 demo ukanren.lisp ./lisp
+demo ukanren-small.lisp ./lisp-small
 demo ukanren-annotated.lisp ./lisp
 demo ukanren-old.lisp ./lisp

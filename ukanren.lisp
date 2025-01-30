@@ -173,8 +173,17 @@
 			   (== as-bs (cons a s-bs))
 			   (appendo s bs s-bs))))))
 
+; (Repeated with quotes just to make ukanren_demo.sh show some extra info)
+'(define appendo
+  (relation (as bs as-bs)
+	    (conde ((== as ()) (== bs as-bs))
+		   ((fresh (a s s-bs)
+			   (== as (cons a s))
+			   (== as-bs (cons a s-bs))
+			   (appendo s bs s-bs))))))
+appendo
+'(run* (a b) (appendo a b '(A B C D E F G)))
 (run* (a b) (appendo a b '(A B C D E F G)))
-
 
 ;; Finally, giving in and using numbers just to limit the number of results we get
 
@@ -193,4 +202,6 @@
 
 ;; Testing it on the most general query of `appendo`
 
+; (Repeated with quotes just to make ukanren_demo.sh show some extra info)
+'(run 5 (a b l) (appendo a b l))
 (run 5 (a b l) (appendo a b l))
