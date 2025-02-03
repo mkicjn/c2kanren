@@ -3,8 +3,10 @@
 (defmacro (caar x) (` car (car , x)))
 (defmacro (cadr x) (` car (cdr , x)))
 (defmacro (cdar x) (` cdr (car , x)))
+(defmacro (cddr x) (` cdr (cdr , x)))
 (defmacro (cadar x) (` cadr (car , x)))
 (defmacro (caddr x) (` cadr (cdr , x)))
+(defmacro (cddar x) (` cddr (car , x)))
 (defmacro (caddar x) (` caddr (car , x)))
 
 (defun (zip as bs)
@@ -69,7 +71,7 @@
 
 ))
 
-(extract-funcs append-sample)
+;(extract-funcs append-sample)
 
 
 ;; Assign valid identifier names to unnamed functions
@@ -85,7 +87,7 @@
 
 (define anon-names '(f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10))
 
-(rename-lambdas (extract-funcs append-sample) anon-names)
+;(rename-lambdas (extract-funcs append-sample) anon-names)
 
 
 ;; Extract all free values from a function
@@ -117,34 +119,51 @@
 (let* ((funcs (rename-lambdas (extract-funcs append-sample) anon-names))
        (func-names (map (lambda (x) (cdr x)) funcs))
        (all-names (append primitives func-names))
-       (free-vars (map (lambda (x) (cons (cdr x) (free-vars all-names (car x)))) funcs)))
-  (list funcs free-vars))
+       (free (map (lambda (x) (list (car x) (cdr x) (free-vars all-names (car x)))) funcs)))
+  free)
 
 
 ;; Transpile function contents
 
-(defun (transpile-cond ls l)
-  (cond ((not l) 'NULL)
-	((eq (caar l) t) (transpile-expr ls (cadar l)))
-	(t (list (transpile-expr ls (caar l)) '? (transpile-expr ls (cadar l))
-		 ': (transpile-cond ls (cdr l))))))
+(defun (exprs-to-lambdas exprs)
+  (let* ((funcs (rename-lambdas (extract-funcs append-sample) anon-names))
+	 (func-names (map func-name funcs))
+	 (all-names (append primitives func-names)))
+    (map (lambda (x) (list (car x) (cdr x) (free-vars all-names (car x)))) funcs)))
 
-(defun (transpile-expr ls x)
+(defun (func-expr-to-name lambdas expr)
+  (cadr (assoc expr lambdas)))
+
+(defun (func-expr-to-freevars lambdas expr)
+  (caddr (assoc expr lambdas)))
+
+(defun (func-expr-to-args lambdas expr)
+  (append (func-expr-to-freevars lambdas expr)
+	  (func-args expr)))
+
+(defun (transpile-cond ls conds)
+  (cond ((not conds) 'NULL)
+	((eq (caar conds) t) (transpile-expr ls (cadar conds)))
+	(t (list (transpile-expr ls (caar conds)) '? (transpile-expr ls (cadar conds))
+		 ': (transpile-cond ls (cdr conds))))))
+
+(defun (transpile-expr lambdas x)
   (cond ((not x) 'NULL)
 	((eq x t) 'sym_t)
 	((atom x) x)
-	((eq (car x) 'eq) (list (transpile-expr ls (cadr x)) '== (transpile-expr ls (caddr x))))
+	((eq (car x) 'eq) (list (transpile-expr lambdas (cadr x)) '== (transpile-expr lambdas (caddr x))))
 	((eq (car x) 'quote) (list 'quote (list '" (cadr x) '")))
-	((eq (car x) 'lambda) (list 'CLOSURE (list (cdr (assoc x ls)))))
-	((eq (car x) 'cond) (transpile-cond ls (cdr x)))
-	((eq (car x) 'not) (list '! (transpile-expr ls (cadr x))))
-	((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr ls) (cdr x)))))
-	(t (list (transpile-expr ls (car x)) (join ', (map (curry transpile-expr ls) (cdr x)))))))
+	((eq (car x) 'lambda) (list 'CLOSURE (join ', (append (list (func-expr-to-name lambdas x))
+							      (func-expr-to-freevars lambdas x)))))
+	((eq (car x) 'cond) (transpile-cond lambdas (cdr x)))
+	((eq (car x) 'not) (list '! (transpile-expr lambdas (cadr x))))
+	((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr lambdas) (cdr x)))))
+	(t (list (transpile-expr lambdas (car x)) (join ', (map (curry transpile-expr lambdas) (cdr x)))))))
 
 (defun (transpile-lambdas0 ls0 ls)
   (cond ((not ls) ())
-	(t (let ((l (caar ls)) (name (cdar ls)))
-	     (append (list 'void '* name (join ', (cadr l)) '{ 'return (transpile-expr ls0 (caddr l)) '})
+	(t (let ((l (caar ls)) (name (cadar ls)))
+	     (append (list 'void '* name (join ', (func-expr-to-args ls0 l)) '{ 'return (transpile-expr ls0 (caddr l)) '})
 		     (transpile-lambdas0 ls0 (cdr ls)))))))
 
 (defun (transpile-lambdas ls) (transpile-lambdas0 ls ls))
@@ -152,4 +171,4 @@
  
 ; Testing on the same sample as before
 
-(transpile-lambdas (rename-lambdas (extract-funcs append-sample) anon-names))
+(transpile-lambdas (exprs-to-lambdas append-sample))
