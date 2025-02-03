@@ -51,7 +51,14 @@
 	X("\006define", define) \
 	X("\004eval", eval) \
 	X("\005fexpr", fexpr) \
-	X("\006expand", expand)
+	X("\006expand", expand) \
+	/*******************/ \
+	X("\001a", a) \
+	X("\001b", b) \
+	X("\001c", c) \
+	X("\001d", d) \
+	X("\001e", e) \
+	X("\001f", f)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
@@ -434,6 +441,49 @@ void *eval(void *x, void *env)
 }
 
 
+/******************************************************************************/
+
+
+#define list3(x, y, z) cons(x, list2(y, z))
+void *ident(void *x);
+void *f0(void *cont, void *l1, void *x);
+void *append_cps(void *cont, void *l1, void *l2);
+void *append(void *l1, void *l2);
+
+void *apply_closure(void *x, void *arg)
+{
+	if (x == (void *)ident) {
+		return ident(arg);
+	} else {
+		void *(*f)(void *, void *, void *) = car(x);
+		return f(cadr(x), caddr(x), arg);
+	}
+}
+
+void *ident(void *x)
+{
+	return x;
+}
+
+void *f0(void *cont, void *l1, void *x)
+{
+	return (apply_closure(cont, (cons((car(l1)), x))));
+}
+
+void *append_cps(void *cont, void *l1, void *l2)
+{
+	//return ((!l1) ? (cont(l2)) : (append_cps((CLOSURE(f0, cont, l1)), (cdr(l1)), l2)));
+	return ((!l1) ? (apply_closure(cont, l2)) : (append_cps((list3(f0, cont, l1)), (cdr(l1)), l2)));
+}
+
+void *append(void *l1, void *l2)
+{
+	return (append_cps(ident, l1, l2));
+}
+
+/******************************************************************************/
+
+
 // **************** REPL ****************
 
 int main()
@@ -447,6 +497,15 @@ int main()
 
 	// Pre-load useful definitions
 	preload = fopen(RCFILE, "r");
+
+	/******************************************************************************/
+	for (int i = 0; i < 10; i++) {
+		clock_t now = clock();
+		print(append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f)));
+		clock_t now2 = clock();
+		printf("%f\n", (double)(now2-now)*1000.0/CLOCKS_PER_SEC);
+	}
+	/******************************************************************************/
 
 	// Run REPL
 	void *nil = NULL;
@@ -464,7 +523,10 @@ int main()
 			defines = bind(cadr(expr), res, defines);
 			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\033[m\n");)
 		} else {
+			clock_t now = clock(); ////////////////
 			void *res = eval(expr, NULL);
+			clock_t now2 = clock(); ///////////////
+			printf("%f\n", (double)(now2-now)*1000.0/CLOCKS_PER_SEC); ///////////////
 			DEBUG(printf("\033[32mEvaluated to: "));
 			print(res);
 			DEBUG(printf("\033[m"));
