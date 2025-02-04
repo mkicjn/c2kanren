@@ -452,12 +452,9 @@ void *append(void *l1, void *l2);
 
 void *apply_closure(void *x, void *arg)
 {
-	if (x == (void *)ident) {
-		return ident(arg);
-	} else {
-		void *(*f)(void *, void *, void *) = car(x);
-		return f(cadr(x), caddr(x), arg);
-	}
+	// TODO: How can we know how many args to apply? More currying?
+	void *(*f)(void *, void *) = car(x);
+	return f(x, arg);
 }
 
 void *ident(void *x)
@@ -465,20 +462,40 @@ void *ident(void *x)
 	return x;
 }
 
+void *curried_ident(void *self, void *x)
+{
+	return ident(x);
+}
+
+void *curry_ident(void)
+{
+	return list1(curried_ident);
+}
+
 void *f0(void *cont, void *l1, void *x)
 {
 	return (apply_closure(cont, (cons((car(l1)), x))));
 }
 
+void *curried_f0(void *env, void *x)
+{
+	return f0(cadr(env), caddr(env), x);
+}
+
+void *curry_f0(void *cont, void *l1)
+{
+	return list3(curried_f0, cont, l1);
+}
+
 void *append_cps(void *cont, void *l1, void *l2)
 {
 	//return ((!l1) ? (cont(l2)) : (append_cps((CLOSURE(f0, cont, l1)), (cdr(l1)), l2)));
-	return ((!l1) ? (apply_closure(cont, l2)) : (append_cps((list3(f0, cont, l1)), (cdr(l1)), l2)));
+	return ((!l1) ? (apply_closure(cont, l2)) : (append_cps(curry_f0(cont, l1), (cdr(l1)), l2)));
 }
 
 void *append(void *l1, void *l2)
 {
-	return (append_cps(ident, l1, l2));
+	return (append_cps(curry_ident(), l1, l2));
 }
 
 /******************************************************************************/
