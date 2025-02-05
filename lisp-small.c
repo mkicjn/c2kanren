@@ -444,15 +444,18 @@ void *eval(void *x, void *env)
 /******************************************************************************/
 
 
+#define CLOSURE(X) CLOSURE_##X
+
 #define list3(x, y, z) cons(x, list2(y, z))
 void *ident(void *x);
 void *f0(void *cont, void *l1, void *x);
 void *append_cps(void *cont, void *l1, void *l2);
 void *append(void *l1, void *l2);
 
-void *apply_closure(void *x, void *arg)
+static inline void *call1(void *x, void *arg)
 {
-	// TODO: How can we know how many args to apply? More currying?
+	// TODO: How can we know how many args to apply? More currying? More callN() functions?
+	// One trick that might be useful is that the number of arguments is known at the call site
 	void *(*f)(void *, void *) = car(x);
 	return f(x, arg);
 }
@@ -462,40 +465,29 @@ void *ident(void *x)
 	return x;
 }
 
-void *curried_ident(void *self, void *x)
-{
-	return ident(x);
-}
-
-void *curry_ident(void)
-{
-	return list1(curried_ident);
-}
+void *curried_ident(void *self, void *x) { return ident(x); }
+void *curry_ident(void) { return list1(curried_ident); }
+#define CLOSURE_ident (curry_ident())
 
 void *f0(void *cont, void *l1, void *x)
 {
-	return (apply_closure(cont, (cons((car(l1)), x))));
+	return call1(cont, cons(car(l1), x));
 }
 
-void *curried_f0(void *env, void *x)
-{
-	return f0(cadr(env), caddr(env), x);
-}
 
-void *curry_f0(void *cont, void *l1)
-{
-	return list3(curried_f0, cont, l1);
-}
+void *curried_f0(void *self, void *x) { return f0(cadr(self), caddr(self), x); }
+void *curry_f0(void *cont, void *l1) { return list3(curried_f0, cont, l1); }
+#define CLOSURE_f0 (curry_f0(cont, l1))
 
 void *append_cps(void *cont, void *l1, void *l2)
 {
-	//return ((!l1) ? (cont(l2)) : (append_cps((CLOSURE(f0, cont, l1)), (cdr(l1)), l2)));
-	return ((!l1) ? (apply_closure(cont, l2)) : (append_cps(curry_f0(cont, l1), (cdr(l1)), l2)));
+	return (!l1) ? call1(cont, l2) : append_cps(CLOSURE(f0), cdr(l1), l2);
 }
 
 void *append(void *l1, void *l2)
 {
-	return (append_cps(curry_ident(), l1, l2));
+	// TODO: If I had a "primitive" type here as in lisp.c, ident() may not have to be "curried"
+	return append_cps(CLOSURE(ident), l1, l2);
 }
 
 /******************************************************************************/
@@ -518,7 +510,8 @@ int main()
 	/******************************************************************************/
 	for (int i = 0; i < 10; i++) {
 		clock_t now = clock();
-		print(append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f)));
+		print(append(append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f)),
+					append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f))));
 		clock_t now2 = clock();
 		printf("%f\n", (double)(now2-now)*1000.0/CLOCKS_PER_SEC);
 	}
