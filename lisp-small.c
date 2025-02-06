@@ -460,14 +460,23 @@ static inline void *call1(void *x, void *arg)
 	return f(x, arg);
 }
 
+static inline void *curry0(void *f)
+{
+	return list1(f);
+}
+
+static inline void *curry2(void *f, void *a, void *b)
+{
+	return list3(f, a, b);
+}
+
 void *ident(void *x)
 {
 	return x;
 }
 
-void *curried_ident(void *self, void *x) { return ident(x); }
-void *curry_ident(void) { return list1(curried_ident); }
-#define CLOSURE_ident (curry_ident())
+void *closed_ident(void *self, void *x) { return ident(x); }
+#define CLOSURE_ident (curry0(closed_ident))
 
 void *f0(void *cont, void *l1, void *x)
 {
@@ -475,9 +484,8 @@ void *f0(void *cont, void *l1, void *x)
 }
 
 
-void *curried_f0(void *self, void *x) { return f0(cadr(self), caddr(self), x); }
-void *curry_f0(void *cont, void *l1) { return list3(curried_f0, cont, l1); }
-#define CLOSURE_f0 (curry_f0(cont, l1))
+void *closed_f0(void *self, void *x) { return f0(cadr(self), caddr(self), x); }
+#define CLOSURE_f0 (curry2(closed_f0, cont, l1))
 
 void *append_cps(void *cont, void *l1, void *l2)
 {
