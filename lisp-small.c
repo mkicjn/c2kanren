@@ -478,8 +478,8 @@ void *(*prims[])() = { FOREACH_PRIM(LIST_FUNC) };
 
 static inline void *call1(void *x, void *a)
 {
-	void *(*f)(void *, void *) = *(void *(**)())car(x);
-	return f(x, a);
+	void *(*f)(void *, void *) = *(void *(**)())*CAR(x);
+	return f(*CDR(x), a);
 }
 
 
@@ -487,9 +487,9 @@ void *ident(void *x)
 {
 	return x;
 }
-void *closed_ident(void *self, void *x)
+void *closed_ident(void *env, void *x)
 {
-	(void)self;
+	(void)env;
 	return ident(x);
 }
 #define CLOSURE_ident (list1(FUNCTION(closed_ident)))
@@ -498,9 +498,9 @@ void *f0(void *x, void *cont, void *l1)
 {
 	return call1(cont, cons(car(l1), x));
 }
-void *closed_f0(void *self, void *x)
+void *closed_f0(void *env, void *x)
 {
-	return f0(x, *CAR(*CDR(self)), *CAR(*CDR(*CDR(self))));
+	return f0(x, *CAR(env), *CAR(*CDR(env)));
 }
 #define CLOSURE_f0 (list3(FUNCTION(closed_f0), cont, l1))
 
