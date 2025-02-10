@@ -134,18 +134,19 @@ void *print(void *x)
 	if (!x) {
 		printf("()");
 	} else if (IN(x, cells)) {
+		void *l = x;
 		// For lists, first print the head
 		printf("(");
-		print(car(x));
+		print(car(l));
 		// Then print successive elements until encountering NIL or atom
-		for (x = cdr(x); IN(x, cells); x = cdr(x)) {
+		for (l = cdr(l); IN(l, cells); l = cdr(l)) {
 			printf(" ");
-			print(car(x));
+			print(car(l));
 		}
 		// If encountering an atom, print with dot notation
-		if (x) {
+		if (l) {
 			printf(" . ");
-			print(x);
+			print(l);
 		}
 		printf(")");
 	} else if (IN(x, syms)) {
