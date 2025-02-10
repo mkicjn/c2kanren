@@ -52,6 +52,7 @@
 	X("\004eval", eval) \
 	X("\005fexpr", fexpr) \
 	X("\006expand", expand) \
+	X("\005print", print) \
 	/*******************/ \
 	X("\001a", a) \
 	X("\001b", b) \
@@ -128,7 +129,7 @@ static inline void *cdr(void *l)
 #define cdar(x) cdr(car(x))
 
 // Value printing
-void print(void *x)
+void *print(void *x)
 {
 	if (!x) {
 		printf("()");
@@ -155,6 +156,7 @@ void print(void *x)
 	} else {
 		printf("\033[33m{sentinel: %p}\033[m", x);
 	}
+	return x;
 }
 
 
@@ -229,10 +231,13 @@ void *symbol(void)
 {
 	// Parse a symbol (and intern it)
 	char *s = next_sym;
-	while (peek > ' ' && peek != '(' && peek != ')')
+	while (peek > ' ' && peek != '(' && peek != ')') {
+		if (peek == '\\')
+			next();
 		*(++next_sym) = next();
+	}
 	if (next_sym == s) // Disallow empty symbols
-		return ERROR;
+		return NULL;
 	*s = next_sym - s;
 	next_sym++;
 	return intern(s);
@@ -389,6 +394,8 @@ void *eval_base(void *x, void *env)
 		return x;
 
 	// Handle primitive function applications
+	if (car(x) == sym_print) // print
+		return print(eval(cadr(x), env));
 	if (car(x) == sym_quote) // quote
 		return cadr(x);
 	if (car(x) == sym_car) // car
@@ -444,48 +451,58 @@ void *eval(void *x, void *env)
 /******************************************************************************/
 
 
-#define CLOSURE(X) CLOSURE_##X
-
 #define list3(x, y, z) cons(x, list2(y, z))
 void *ident(void *x);
+void *closed_ident(void *self, void *x);
 void *f0(void *cont, void *l1, void *x);
+void *closed_f0(void *self, void *x);
 void *append_cps(void *cont, void *l1, void *l2);
 void *append(void *l1, void *l2);
 
-static inline void *call1(void *x, void *arg)
+#define FOREACH_PRIM(X) \
+	X(ident) \
+	X(closed_ident) \
+	X(f0) \
+	X(closed_f0) \
+	X(append_cps) \
+	X(append)
+
+#define DECL_ENUM(F) F##_e,
+enum prim_e { FOREACH_PRIM(DECL_ENUM) };
+
+#define LIST_FUNC(F) F,
+void *(*prims[])() = { FOREACH_PRIM(LIST_FUNC) };
+
+#define CLOSURE(F) CLOSURE_##F
+#define FUNCTION(F) &prims[F##_e]
+
+static inline void *call1(void *x, void *a)
 {
-	// TODO: How can we know how many args to apply? More currying? More callN() functions?
-	// One trick that might be useful is that the number of arguments is known at the call site
-	void *(*f)(void *, void *) = car(x);
-	return f(x, arg);
+	void *(*f)(void *, void *) = *(void *(**)())car(x);
+	return f(x, a);
 }
 
-static inline void *curry0(void *f)
-{
-	return list1(f);
-}
-
-static inline void *curry2(void *f, void *a, void *b)
-{
-	return list3(f, a, b);
-}
 
 void *ident(void *x)
 {
 	return x;
 }
+void *closed_ident(void *self, void *x)
+{
+	(void)self;
+	return ident(x);
+}
+#define CLOSURE_ident (list1(FUNCTION(closed_ident)))
 
-void *closed_ident(void *self, void *x) { return ident(x); }
-#define CLOSURE_ident (curry0(closed_ident))
-
-void *f0(void *cont, void *l1, void *x)
+void *f0(void *x, void *cont, void *l1)
 {
 	return call1(cont, cons(car(l1), x));
 }
-
-
-void *closed_f0(void *self, void *x) { return f0(cadr(self), caddr(self), x); }
-#define CLOSURE_f0 (curry2(closed_f0, cont, l1))
+void *closed_f0(void *self, void *x)
+{
+	return f0(x, *CAR(*CDR(self)), *CAR(*CDR(*CDR(self))));
+}
+#define CLOSURE_f0 (list3(FUNCTION(closed_f0), cont, l1))
 
 void *append_cps(void *cont, void *l1, void *l2)
 {
@@ -494,7 +511,6 @@ void *append_cps(void *cont, void *l1, void *l2)
 
 void *append(void *l1, void *l2)
 {
-	// TODO: If I had a "primitive" type here as in lisp.c, ident() may not have to be "curried"
 	return append_cps(CLOSURE(ident), l1, l2);
 }
 
