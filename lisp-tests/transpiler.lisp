@@ -14,9 +14,13 @@
 	((not bs) ())
 	(t (cons (cons (car as) (car bs)) (zip (cdr as) (cdr bs))))))
 
+(defun (listify x)
+  (cond ((atom x) (list x))
+	(t x)))
+
 (defun (join s x)
-  (cond ((cdr x) (cons (car x) (cons s (join s (cdr x)))))
-	(x (list (car x)))))
+  (cond ((cdr x) (` ,@ (listify (car x)) , s ,. (join s (cdr x))))
+	(x (listify (car x)))))
 
 (defun (in s l)
   (cond ((not l) ())
@@ -119,15 +123,15 @@
 (let* ((funcs (rename-lambdas (extract-funcs append-sample) anon-names))
        (func-names (map (lambda (x) (cdr x)) funcs))
        (all-names (append primitives func-names))
-       (free (map (lambda (x) (list (car x) (cdr x) (free-vars all-names (car x)))) funcs)))
+       (free (map (lambda (x) (list (cdr x) (free-vars all-names (car x)))) funcs)))
   free)
 
 
 ;; Transpile function contents
 
 (defun (exprs-to-lambdas exprs)
-  (let* ((funcs (rename-lambdas (extract-funcs append-sample) anon-names))
-	 (func-names (map func-name funcs))
+  (let* ((funcs (rename-lambdas (extract-funcs exprs) anon-names))
+	 (func-names (map (lambda (x) (cdr x)) funcs))
 	 (all-names (append primitives func-names)))
     (map (lambda (x) (list (car x) (cdr x) (free-vars all-names (car x)))) funcs)))
 
@@ -151,24 +155,25 @@
   (cond ((not x) 'NULL)
 	((eq x t) 'sym_t)
 	((atom x) x)
-	((eq (car x) 'eq) (list (transpile-expr lambdas (cadr x)) '== (transpile-expr lambdas (caddr x))))
+	((eq (car x) 'eq) (` ,@ (transpile-expr lambdas (cadr x)) == ,@ (transpile-expr lambdas (caddr x))))
 	((eq (car x) 'quote) (list 'quote (list '" (cadr x) '")))
-	((eq (car x) 'lambda) (list 'CLOSURE (join ', (append (list (func-expr-to-name lambdas x))
-							      (func-expr-to-freevars lambdas x)))))
+	((eq (car x) 'lambda) (` CLOSURE (, (func-expr-to-name lambdas x))))
 	((eq (car x) 'cond) (transpile-cond lambdas (cdr x)))
-	((eq (car x) 'not) (list '! (transpile-expr lambdas (cadr x))))
-	((in (car x) '(car cdr cons)) (list (car x) (join ', (map (curry transpile-expr lambdas) (cdr x)))))
-	(t (list (transpile-expr lambdas (car x)) (join ', (map (curry transpile-expr lambdas) (cdr x)))))))
+	((eq (car x) 'not) (` ! , (transpile-expr lambdas (cadr x))))
+	((in (car x) '(car cdr cons)) (` , (car x) , (join ', (map (curry transpile-expr lambdas) (cdr x)))))
+	(t (list 'CALL (join ', (append (list (transpile-expr lambdas (car x))) (map (curry transpile-expr lambdas) (cdr x))))))))
 
 (defun (transpile-lambdas0 ls0 ls)
   (cond ((not ls) ())
 	(t (let ((l (caar ls)) (name (cadar ls)))
-	     (append (list 'void '* name (join ', (func-expr-to-args ls0 l)) '{ 'return (transpile-expr ls0 (caddr l)) '})
+	     (append (list 'void '* name (join ', (func-expr-to-args ls0 l)) '{ 'return (transpile-expr ls0 (caddr l)) '\; '})
 		     (transpile-lambdas0 ls0 (cdr ls)))))))
 
 (defun (transpile-lambdas ls) (transpile-lambdas0 ls ls))
 
  
 ; Testing on the same sample as before
+
+(exprs-to-lambdas append-sample)
 
 (transpile-lambdas (exprs-to-lambdas append-sample))
