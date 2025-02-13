@@ -173,8 +173,8 @@
 (defun (transpile-lambdas0 ls0 ls)
   (cond ((not ls) ())
 	(t (let ((l (caar ls)) (name (cadar ls)))
-	     (append (list 'void '* name (join ', (map (lambda (x) (` void * , x)) (func-expr-to-args ls0 l)))
-			   nl '{ nl tab 'return (transpile-expr ls0 (caddr l)) '\; nl '} nl)
+	     (append (` void * , name , (join ', (map (lambda (x) (` void * , x)) (func-expr-to-args ls0 l)))
+			   , nl { , nl , tab return ,@ (listify (transpile-expr ls0 (caddr l))) , '\; , nl } , nl)
 		     (transpile-lambdas0 ls0 (cdr ls)))))))
 
 (defun (transpile-lambdas ls) (transpile-lambdas0 ls ls))

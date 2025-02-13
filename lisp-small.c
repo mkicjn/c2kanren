@@ -500,15 +500,15 @@ void *closed_f0(void *env, void *x)
  }
  void * append_cps (void * cont , void * l1 , void * l2)
  {
-         return ((! l1) ? (CALL (cont , l2)) : (append_cps (CLOSURE (f0) , cdr (l1) , l2))) ;
+         return (! l1) ? (CALL (cont , l2)) : (append_cps (CLOSURE (f0) , cdr (l1) , l2)) ;
  }
  void * f0 (void * x , void * cont , void * l1)
  {
-         return (CALL (cont , cons (car (l1) , x))) ;
+         return CALL (cont , cons (car (l1) , x)) ;
  }
  void * append (void * l1 , void * l2)
  {
-         return (append_cps (CLOSURE (ident) , l1 , l2)) ;
+         return append_cps (CLOSURE (ident) , l1 , l2) ;
  }
 
 /******************************************************************************/
