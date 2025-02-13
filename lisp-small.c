@@ -479,10 +479,6 @@ static inline void *call1(void *x, void *a)
 }
 
 
-void *ident(void *x)
-{
-	return x;
-}
 void *closed_ident(void *env, void *x)
 {
 	(void)env;
@@ -490,25 +486,30 @@ void *closed_ident(void *env, void *x)
 }
 #define CLOSURE_ident (list1(FUNCTION(closed_ident)))
 
-void *f0(void *x, void *cont, void *l1)
-{
-	return call1(cont, cons(car(l1), x));
-}
 void *closed_f0(void *env, void *x)
 {
 	return f0(x, *CAR(env), *CAR(*CDR(env)));
 }
 #define CLOSURE_f0 (list3(FUNCTION(closed_f0), cont, l1))
 
-void *append_cps(void *cont, void *l1, void *l2)
-{
-	return (!l1) ? call1(cont, l2) : append_cps(CLOSURE(f0), cdr(l1), l2);
-}
-
-void *append(void *l1, void *l2)
-{
-	return append_cps(CLOSURE(ident), l1, l2);
-}
+#define CALL call1
+// Current output of transpiler below
+ void * ident (void * x)
+ {
+         return x ;
+ }
+ void * append_cps (void * cont , void * l1 , void * l2)
+ {
+         return ((! l1) ? (CALL (cont , l2)) : (append_cps (CLOSURE (f0) , cdr (l1) , l2))) ;
+ }
+ void * f0 (void * x , void * cont , void * l1)
+ {
+         return (CALL (cont , cons (car (l1) , x))) ;
+ }
+ void * append (void * l1 , void * l2)
+ {
+         return (append_cps (CLOSURE (ident) , l1 , l2)) ;
+ }
 
 /******************************************************************************/
 

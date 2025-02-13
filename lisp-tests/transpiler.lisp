@@ -142,8 +142,7 @@
   (caddr (assoc expr lambdas)))
 
 (defun (func-expr-to-args lambdas expr)
-  (append (func-expr-to-freevars lambdas expr)
-	  (func-args expr)))
+  (append (func-args expr) (func-expr-to-freevars lambdas expr)))
 
 (defun (transpile-cond ls conds)
   (cond ((not conds) 'NULL)
