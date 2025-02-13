@@ -52,7 +52,6 @@
 	X("\004eval", eval) \
 	X("\005fexpr", fexpr) \
 	X("\006expand", expand) \
-	X("\005print", print) \
 	/*******************/ \
 	X("\001a", a) \
 	X("\001b", b) \
@@ -129,24 +128,23 @@ static inline void *cdr(void *l)
 #define cdar(x) cdr(car(x))
 
 // Value printing
-void *print(void *x)
+void print(void *x)
 {
 	if (!x) {
 		printf("()");
 	} else if (IN(x, cells)) {
-		void *l = x;
 		// For lists, first print the head
 		printf("(");
-		print(car(l));
+		print(car(x));
 		// Then print successive elements until encountering NIL or atom
-		for (l = cdr(l); IN(l, cells); l = cdr(l)) {
+		for (x = cdr(x); IN(x, cells); x = cdr(x)) {
 			printf(" ");
-			print(car(l));
+			print(car(x));
 		}
 		// If encountering an atom, print with dot notation
-		if (l) {
+		if (x) {
 			printf(" . ");
-			print(l);
+			print(x);
 		}
 		printf(")");
 	} else if (IN(x, syms)) {
@@ -157,7 +155,6 @@ void *print(void *x)
 	} else {
 		printf("\033[33m{sentinel: %p}\033[m", x);
 	}
-	return x;
 }
 
 
@@ -395,8 +392,6 @@ void *eval_base(void *x, void *env)
 		return x;
 
 	// Handle primitive function applications
-	if (car(x) == sym_print) // print
-		return print(eval(cadr(x), env));
 	if (car(x) == sym_quote) // quote
 		return cadr(x);
 	if (car(x) == sym_car) // car

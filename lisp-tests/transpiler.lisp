@@ -154,7 +154,7 @@
 (defun (transpile-expr lambdas x)
   (cond ((not x) 'NULL)
 	((eq x t) 'sym_t)
-	((atom x) x)
+	((atom x) (cond ((in x (map (lambda (x) (cadr x)) lambdas)) (` CLOSURE (, x))) (t x)))
 	((eq (car x) 'eq) (` ,@ (transpile-expr lambdas (cadr x)) == ,@ (transpile-expr lambdas (caddr x))))
 	((eq (car x) 'quote) (` quote (" , (cadr x) ")))
 	((eq (car x) 'lambda) (` CLOSURE (, (func-expr-to-name lambdas x))))
@@ -166,11 +166,16 @@
 	 (` , (car x) , (join ', (map (curry transpile-expr lambdas) (cdr x)))))
 	(t (` CALL , (join ', (append (list (transpile-expr lambdas (car x))) (map (curry transpile-expr lambdas) (cdr x))))))))
 
+(define nl '\
+)
+
+(define tab '\	)
+
 (defun (transpile-lambdas0 ls0 ls)
   (cond ((not ls) ())
 	(t (let ((l (caar ls)) (name (cadar ls)))
 	     (append (list 'void '* name (join ', (map (lambda (x) (` void * , x)) (func-expr-to-args ls0 l)))
-			   '{ 'return (transpile-expr ls0 (caddr l)) '\; '})
+			   nl '{ nl tab 'return (transpile-expr ls0 (caddr l)) '\; nl '} nl)
 		     (transpile-lambdas0 ls0 (cdr ls)))))))
 
 (defun (transpile-lambdas ls) (transpile-lambdas0 ls ls))
