@@ -51,14 +51,7 @@
 	X("\006define", define) \
 	X("\004eval", eval) \
 	X("\005fexpr", fexpr) \
-	X("\006expand", expand) \
-	/*******************/ \
-	X("\001a", a) \
-	X("\001b", b) \
-	X("\001c", c) \
-	X("\001d", d) \
-	X("\001e", e) \
-	X("\001f", f)
+	X("\006expand", expand)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
@@ -235,7 +228,7 @@ void *symbol(void)
 		*(++next_sym) = next();
 	}
 	if (next_sym == s) // Disallow empty symbols
-		return NULL;
+		return ERROR;
 	*s = next_sym - s;
 	next_sym++;
 	return intern(s);
