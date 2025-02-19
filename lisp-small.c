@@ -444,76 +444,6 @@ void *eval(void *x, void *env)
 }
 
 
-/******************************************************************************/
-
-
-#define list3(x, y, z) cons(x, list2(y, z))
-void *ident(void *x);
-void *closed_ident(void *self, void *x);
-void *f0(void *cont, void *l1, void *x);
-void *closed_f0(void *self, void *x);
-void *append_cps(void *cont, void *l1, void *l2);
-void *append(void *l1, void *l2);
-
-#define FOREACH_PRIM(X) \
-	X(ident) \
-	X(closed_ident) \
-	X(f0) \
-	X(closed_f0) \
-	X(append_cps) \
-	X(append)
-
-#define DECL_ENUM(F) F##_e,
-enum prim_e { FOREACH_PRIM(DECL_ENUM) };
-
-#define LIST_FUNC(F) F,
-void *(*prims[])() = { FOREACH_PRIM(LIST_FUNC) };
-
-#define CLOSURE(F) CLOSURE_##F
-#define FUNCTION(F) &prims[F##_e]
-
-static inline void *call1(void *x, void *a)
-{
-	void *(*f)(void *, void *) = *(void *(**)())*CAR(x);
-	return f(*CDR(x), a);
-}
-
-
-void *closed_ident(void *env, void *x)
-{
-	(void)env;
-	return ident(x);
-}
-#define CLOSURE_ident (list1(FUNCTION(closed_ident)))
-
-void *closed_f0(void *env, void *x)
-{
-	return f0(x, *CAR(env), *CAR(*CDR(env)));
-}
-#define CLOSURE_f0 (list3(FUNCTION(closed_f0), cont, l1))
-
-#define CALL call1
-// Current output of transpiler below
- void * ident (void * x)
- {
-         return x ;
- }
- void * append_cps (void * cont , void * l1 , void * l2)
- {
-         return (! l1) ? (CALL (cont , l2)) : (append_cps (CLOSURE (f0) , cdr (l1) , l2)) ;
- }
- void * f0 (void * x , void * cont , void * l1)
- {
-         return CALL (cont , cons (car (l1) , x)) ;
- }
- void * append (void * l1 , void * l2)
- {
-         return append_cps (CLOSURE (ident) , l1 , l2) ;
- }
-
-/******************************************************************************/
-
-
 // **************** REPL ****************
 
 int main()
@@ -527,16 +457,6 @@ int main()
 
 	// Pre-load useful definitions
 	preload = fopen(RCFILE, "r");
-
-	/******************************************************************************/
-	for (int i = 0; i < 10; i++) {
-		clock_t now = clock();
-		print(append(append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f)),
-					append(list3(sym_a, sym_b, sym_c), list3(sym_d, sym_e, sym_f))));
-		clock_t now2 = clock();
-		printf("%f\n", (double)(now2-now)*1000.0/CLOCKS_PER_SEC);
-	}
-	/******************************************************************************/
 
 	// Run REPL
 	void *nil = NULL;
@@ -554,10 +474,7 @@ int main()
 			defines = bind(cadr(expr), res, defines);
 			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\033[m\n");)
 		} else {
-			clock_t now = clock(); ////////////////
 			void *res = eval(expr, NULL);
-			clock_t now2 = clock(); ///////////////
-			printf("%f\n", (double)(now2-now)*1000.0/CLOCKS_PER_SEC); ///////////////
 			DEBUG(printf("\033[32mEvaluated to: "));
 			print(res);
 			DEBUG(printf("\033[m"));

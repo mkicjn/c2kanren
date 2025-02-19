@@ -98,12 +98,6 @@
 (defun (append . ls)
   (append-cps ident . ls))
 
-(append (append '(a b c) '(d e f)) (append '(a b c) '(d e f)))
-(append (append '(a b c) '(d e f)) (append '(a b c) '(d e f)))
-(append (append '(a b c) '(d e f)) (append '(a b c) '(d e f)))
-(append (append '(a b c) '(d e f)) (append '(a b c) '(d e f)))
-(append (append '(a b c) '(d e f)) (append '(a b c) '(d e f)))
-
 (defun (expand-qq l)
   (cond ((not l) ())
 	((atom l) (list 'quote l))

@@ -375,8 +375,11 @@ void *symbol(void)
 {
 	// Parse a symbol (and intern it)
 	char *s = next_sym++;
-	while (peek > ' ' && peek != '(' && peek != ')')
+	while (peek > ' ' && peek != '(' && peek != ')') {
+		if (peek == '\\')
+			next();
 		*(next_sym++) = next();
+	}
 	if (next_sym == s+1) // Disallow empty symbols
 		return ERROR;
 	*s = next_sym - (s+1); // Store length in first byte
