@@ -343,13 +343,13 @@ void *evlis(void *l, void *env)
 	return cons(eval(car(l), env), evlis(cdr(l), env));
 }
 
-void *pairlis(void *a, void *b, void *env)
+void *pairlis(void *ks, void *vs, void *env)
 {
-	if (!a)
+	for (; IN(ks, cells) && IN(vs, cells); ks = cdr(ks), vs = cdr(vs))
+		env = bind(car(ks), car(vs), env);
+	if (!ks)
 		return env;
-	if (IN(a, syms))
-		return bind(a, b, env);
-	return pairlis(cdr(a), cdr(b), bind(car(a), car(b), env));
+	return bind(ks, vs, env);
 }
 
 void *evcon(void *cs, void *env)
