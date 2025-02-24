@@ -47,7 +47,7 @@
      (expand-shallow rules expr))))
 
 
-;; Implementing some real macros
+;; Implement expand and defmacro
 
 (define expand-rules
   (list
@@ -63,27 +63,48 @@
 
 (define expand (lambda (expr) (expand-deep expand-rules expr)))
 
-(defmacro (defun name/args body)
-  (list 'define
-	(car name/args)
-	(list 'lambda (cdr name/args) body)))
-
 
 ;; Support for let-bindings
 
-(defun (expand-let bindings body)
-  (cons (list 'lambda (map (lambda (x) (car x)) bindings) body)
-	(map (lambda (x) (car (cdr x))) bindings)))
+(define expand-let
+  (lambda (bindings body)
+    (cons (list 'lambda (map (lambda (x) (car x)) bindings) body)
+	  (map (lambda (x) (car (cdr x))) bindings))))
 
-(defun (expand-let* bindings body)
-  (cond ((not bindings) body)
-	(t (list (list 'lambda
-		       (list (car (car bindings)))
-		       (expand-let* (cdr bindings) body))
-		 (car (cdr (car bindings)))))))
+(define expand-let*
+  (lambda (bindings body)
+    (cond ((not bindings) body)
+	  (t (list (list 'lambda
+			 (list (car (car bindings)))
+			 (expand-let* (cdr bindings) body))
+		   (car (cdr (car bindings))))))))
 
 (defmacro (let  bindings body) (expand-let  bindings body))
 (defmacro (let* bindings body) (expand-let* bindings body))
+
+
+;; Support for defun, with default args
+
+(define arg-names
+  (lambda (args)
+    (cond ((atom args) args)
+	  ((atom (car args)) (cons (car args) (arg-names (cdr args))))
+	  (t (cons (car (car args)) (arg-names (cdr args)))))))
+
+(define arg-defaults
+  (lambda (args)
+    (cond ((atom args) ())
+	  ((atom (car args)) (arg-defaults (cdr args)))
+	  (t (cons (car args) (arg-defaults (cdr args)))))))
+
+(defmacro (defun name/args body)
+  (let* ((name (car name/args))
+	 (args (cdr name/args))
+	 (names (arg-names args))
+	 (defaults (arg-defaults args))
+	 (lam (list 'lambda names body)))
+    (cond (defaults (list 'define name (list 'let defaults lam)))
+	  (t        (list 'define name lam)))))
 
 
 ;; Support for quasiquotation
