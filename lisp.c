@@ -88,6 +88,7 @@
 	X("\002or", l_or) \
 	X("\004type", l_type) \
 	X("\006define", l_define) \
+	X("\006gensym", l_gensym) \
 	FOREACH_ARITH_PRIM(X)
 
 // X macro: All built-in symbols (with or without a corresponding primitive)
@@ -279,7 +280,10 @@ void print(void *x)
 		printf(")");
 	} else if (IN(x, syms)) {
 		char *s = x;
-		printf("%.*s", *s, s + 1);
+		if (*s == 0)
+			printf("_%lu_", s - syms);
+		else
+			printf("%.*s", *s, s + 1);
 	} else if (IN(x, prims)) {
 		char *s = prim_syms[(void **)x - (void **)prims];
 		printf("{primitive: %.*s}", *s, s + 1);
@@ -867,6 +871,15 @@ void *l_type(void *args, void **cont, void **envp)
 	} else {
 		return ERROR;
 	}
+}
+
+void *l_gensym(void *args, void **cont, void **envp)
+{
+	(void)args;
+	(void)cont;
+	(void)envp;
+	next_sym[0] = 0;
+	return (next_sym++);
 }
 
 // Arithmetic functions

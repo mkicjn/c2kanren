@@ -51,7 +51,8 @@
 	X("\006define", define) \
 	X("\004eval", eval) \
 	X("\005fexpr", fexpr) \
-	X("\006expand", expand)
+	X("\006expand", expand) \
+	X("\006gensym", gensym)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *sym_##id;
@@ -67,12 +68,12 @@ FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Space for cons cells in the form of [cell 0 car, cell 0 cdr, cell 1 car, cell 1 cdr, ...]
 // (This memory is managed via garbage collection)
-void *cells[MAX_CELL_SPACE];
+void *cells[MAX_CELL_SPACE] = {0};
 void **next_cell = cells;
 
 // Space for symbols in the form of counted strings (first char is length), stored consecutively
 // (This memory is managed via string interning)
-char syms[MAX_SYM_SPACE];
+char syms[MAX_SYM_SPACE] = {0};
 char *next_sym = syms;
 
 // Macro for determining whether a pointer lies within a given array
@@ -142,7 +143,10 @@ void print(void *x)
 		printf(")");
 	} else if (IN(x, syms)) {
 		char *s = x;
-		printf("%.*s", *(unsigned char *)s, s + 1);
+		if (*s == 0)
+			printf("_%lu_", s - syms);
+		else
+			printf("%.*s", *s, s + 1);
 	} else if (x == ERROR) {
 		printf("\033[31m{error}\033[m");
 	} else {
@@ -399,6 +403,10 @@ void *eval_base(void *x, void *env)
 		return cons(eval(cadr(x), env), eval(caddr(x), env));
 	if (car(x) == sym_lambda || car(x) == sym_fexpr) // lambda/fexpr
 		return cons(x, env);
+	if (car(x) == sym_gensym) { // gensym
+		next_sym[0] = 0;
+		return (next_sym++);
+	}
 
 	// Otherwise, not a base case
 	return CONTINUE;

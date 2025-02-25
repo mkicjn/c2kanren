@@ -112,8 +112,8 @@
 (defun (ident x) x)
 
 (defun (append-cps cont l1 l2 . ls)
-  (cond ((not l1) (cond ((not ls) (cont l2))
-			(t (append-cps cont l2 . ls))))
+  (cond ((atom l1) (cond ((not ls) (cont l2))
+			 (t (append-cps cont l2 . ls))))
 	(t (append-cps (lambda (x) (cont (cons (car l1) x))) (cdr l1) l2 . ls))))
 
 (defun (append . ls)
@@ -138,4 +138,5 @@
 
 (defmacro (or first . rest)
   (cond ((not rest) first)
-	(t (` let ((_ , first)) (cond (_ _) (t (or ,. rest)))))))
+	(t (let ((_ (gensym)))
+	     (` let ((, _ , first)) (cond (, _ , _) (t (or ,. rest))))))))
