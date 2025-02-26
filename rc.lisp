@@ -140,3 +140,26 @@
   (cond ((not rest) first)
 	(t (let ((_ (gensym)))
 	     (` let ((, _ , first)) (cond (, _ , _) (t (or ,. rest))))))))
+
+
+;; Right and left fold; better map, reverse, and append
+; TODO: Implement folds earlier?
+
+(defun (fold-right f i l (cont ident))
+  (cond ((not l) (cont i))
+	((atom l) (cont l))
+	(t (fold-right f i (cdr l) (lambda (x) (cont (f (car l) x)))))))
+
+(defun (fold-left f i l)
+  (cond ((not l) i)
+	((atom l) l)
+	(t (fold-left f (f i (car l)) (cdr l)))))
+
+(defun (map f l)
+  (fold-right (lambda (x y) (cons (f x) y)) () l))
+
+(defun (reverse l)
+  (fold-left (lambda (x y) (cons y x)) () l))
+
+(defun (append a b)
+  (fold-right (lambda (x y) (cons x y)) b a))
