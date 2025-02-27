@@ -163,3 +163,12 @@
 
 (defun (append a b)
   (fold-right (lambda (x y) (cons x y)) b a))
+
+
+;; Zip
+
+(defun (zip a b (cont ident))
+  (cond ((atom a) (cont ()))
+	((atom b) (cont ()))
+	(t (zip (cdr a) (cdr b)
+		(lambda (x) (cont (cons (cons (car a) (car b)) x)))))))
