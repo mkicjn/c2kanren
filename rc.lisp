@@ -116,12 +116,14 @@
 (defun (ident x) x)
 
 (defun (append-cps cont l1 l2 . ls)
-  (cond ((atom l1) (cond ((not ls) (cont l2))
+  (cond ((atom l1) (cond ((atom ls) (cont l2))
 			 (t (append-cps cont l2 . ls))))
 	(t (append-cps (lambda (x) (cont (cons (car l1) x))) (cdr l1) l2 . ls))))
 
 (defun (append . ls)
-  (append-cps ident . ls))
+  (cond ((atom ls) ())
+	((atom (cdr ls)) (car ls))
+	(t (append-cps ident () () . ls))))
 
 (defun (flatten ls) (append . ls))
 
