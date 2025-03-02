@@ -10,11 +10,15 @@
 
 (define Y (lambda (f) (f (lambda args ((Y f) . args)))))
 
+(define assp
+  (lambda (f l)
+    (cond ((atom l) ())
+	  ((f (car l)) (car l))
+	  (t (assp f (cdr l))))))
+
 (define assoc
   (lambda (s l)
-    (cond ((not l) ())
-	  ((eq s (car (car l))) (car l))
-	  (t (assoc s (cdr l))))))
+    (assp (lambda (x) (eq s (car x))) l)))
 
 (define map
   (lambda (f l)
@@ -107,7 +111,7 @@
 	  (t        (list 'define name lam)))))
 
 
-;; Support for quasiquotation
+;; List append and flatten
 
 (defun (ident x) x)
 
@@ -118,6 +122,11 @@
 
 (defun (append . ls)
   (append-cps ident . ls))
+
+(defun (flatten ls) (append . ls))
+
+
+;; Support for quasiquotation
 
 (defun (expand-qq l)
   (cond ((not l) ())
@@ -142,7 +151,7 @@
 	     (` let ((, _ , first)) (cond (, _ , _) (t (or ,. rest))))))))
 
 
-;; Right and left fold; better map, reverse, and append
+;; Right and left fold; better map; reverse
 ; TODO: Implement folds earlier?
 
 (defun (fold-right f i l (cont ident))
@@ -161,8 +170,9 @@
 (defun (reverse l)
   (fold-left (lambda (x y) (cons y x)) () l))
 
-(defun (append a b)
-  (fold-right (lambda (x y) (cons x y)) b a))
+;; A fun way to implement `append` - but it's way slower than the original
+;(defun (append . ls)
+;  (fold-right (lambda (a b) (fold-right (lambda (x y) (cons x y)) b a)) () ls))
 
 
 ;; Zip
@@ -172,3 +182,47 @@
 	((atom b) (cont ()))
 	(t (zip (cdr a) (cdr b)
 		(lambda (x) (cont (cons (cons (car a) (car b)) x)))))))
+
+
+;; List access macros
+
+(defmacro (caar l) (` car (car , l)))
+(defmacro (cadr l) (` car (cdr , l)))
+(defmacro (cdar l) (` cdr (car , l)))
+(defmacro (cddr l) (` cdr (cdr , l)))
+(defmacro (cadar l) (` car (cdar , l)))
+(defmacro (caddr l) (` car (cddr , l)))
+
+
+;; let+
+
+(defun (locs l (cont (lambda () '_)))
+  (cond ((not l) ())
+	((atom l) (list (list l (cont))))
+	(t (append (locs (car l) (lambda () (list 'car (cont))))
+		   (locs (cdr l) (lambda () (list 'cdr (cont))))))))
+
+(defmacro (destructuring-bind where tree body)
+  (let ((_ (gensym)))
+    (` let ((, _ , tree)) (let , (locs where (lambda () _)) , body))))
+
+; Interesting example of recursive expansion
+(defmacro (let+ exprs body)
+  (cond ((atom exprs) body)
+	((atom (caar exprs))
+	 (` let (, (car exprs))
+	    (let+ , (cdr exprs) , body)))
+	(t (` destructuring-bind
+	      , (caar exprs)
+	      , (cadar exprs)
+	      (let+ , (cdr exprs) , body)))))
+
+
+;; List equality
+
+(defun (equal a b)
+  (cond ((eq a b) t)
+	((atom a) ())
+	((atom b) ())
+	(t (and (equal (car a) (car b))
+		(equal (cdr a) (cdr b))))))
