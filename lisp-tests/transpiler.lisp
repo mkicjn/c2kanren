@@ -1,19 +1,5 @@
 ; Useful definitions
 
-(defmacro (caar x) (` car (car , x)))
-(defmacro (cadr x) (` car (cdr , x)))
-(defmacro (cdar x) (` cdr (car , x)))
-(defmacro (cddr x) (` cdr (cdr , x)))
-(defmacro (cadar x) (` cadr (car , x)))
-(defmacro (caddr x) (` cadr (cdr , x)))
-(defmacro (cddar x) (` cddr (car , x)))
-(defmacro (caddar x) (` caddr (car , x)))
-
-(defun (zip as bs)
-  (cond ((not as) ())
-	((not bs) ())
-	(t (cons (cons (car as) (car bs)) (zip (cdr as) (cdr bs))))))
-
 (defun (listify x)
   (cond ((atom x) (list x))
 	(t x)))
@@ -76,7 +62,6 @@
 ))
 
 ;(extract-funcs append-sample)
-
 
 ;; Assign valid identifier names to unnamed functions
 
@@ -236,3 +221,64 @@
 ;#define CLOSURE_f0 (list3(FUNCTION(closed_f0), cont, l1))
 ;
 ;#define CALL call1
+
+
+
+;; Messing around with an SSA-like representation
+
+(defun (ssa l)
+  (cond ((atom l) (list (list (gensym) l)))
+	((eq (car l) 'quote) (list (list (gensym) l)))
+	(t (cons (list (gensym) l)
+		 (flatten (map ssa l))))))
+
+(defun (get-match e ls)
+  (assp (lambda (p) (equal e (cadr p))) ls))
+
+(defun (dedup ls)
+  (cond ((atom ls) ls)
+	(t (let* ((lsd (dedup (cdr ls)))
+		  (match (get-match (cadar ls) lsd)))
+	     (cond (match lsd)
+		   (t (cons (car ls) lsd)))))))
+
+
+(defun (sub l ls)
+  (or (car (get-match l ls)) l))
+
+(defun (subs l ls)
+  (cond ((atom l) l)
+	(t (map (lambda (x) (sub x ls)) l))))
+
+(defun (do-subs ls)
+  (cond ((atom ls) ls)
+	(t (cons (list (caar ls) (subs (cadar ls) ls))
+		 (do-subs (cdr ls))))))
+
+(defun (formatted ls)
+  (cond ((atom ls) ls)
+	(t (` void * , (caar ls) = , (cadar ls) , '\; , '\
+	      ,@ (formatted (cdr ls))))))
+
+
+;; Testing
+
+(ssa '(cons 'a 'b))
+
+(dedup (ssa '(cons 'a 'a)))
+
+(subs '(cons 'a 'a) (dedup (ssa '(cons 'a 'a))))
+
+;(do-subs (dedup (ssa '(cons 'a 'a))))
+(define test
+  '(cond ((atom ls) ls)
+	 (t (let* ((lsd (dedup (cdr ls)))
+		   (match (get-match (cadar ls) lsd)))
+	      (cond (match lsd)
+		    (t (cons (car ls) lsd)))))))
+test
+(define test (dedup (ssa (expand test))))
+test
+(define test (do-subs test))
+test
+(formatted (reverse test))
