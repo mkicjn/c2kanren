@@ -4,7 +4,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <time.h>
 
 // Compile-time variables
 #ifndef MAX_CELL_SPACE
@@ -159,34 +158,43 @@ void print(void *x)
 
 void *read(void);
 
-FILE *preload = NULL; // File to parse before switching to stdin
+// Default files: RCFILE followed by stdin
+int num_files = 2;
+char **files = (char *[]){RCFILE, "-"};
+
+FILE *cur_file = NULL;
+void next_file_or_exit(void)
+{
+	if (cur_file)
+		fclose(cur_file);
+	do {
+		if (num_files <= 0)
+			exit(0);
+		else if (files[0][0] == '-' && files[0][1] == '\0')
+			cur_file = stdin;
+		else
+			cur_file = fopen(files[0], "r");
+		files++;
+		num_files--;
+	} while (!cur_file);
+}
 
 int peek = '\0';
-
 char next(void)
 {
 	// Delay char stream by one to allow lookahead
 	char c = peek;
-	if (preload) {
-		peek = fgetc(preload);
-		if (peek == EOF) {
-			fclose(preload);
-			preload = NULL;
-		}
-	}
-	if (!preload)
-		peek = getchar();
+	peek = fgetc(cur_file);
+	if (peek == EOF)
+		next_file_or_exit();
 	return c;
 }
 
 void space(void)
 {
 	// Skip whitespace
-	while (peek <= ' ') {
-		if (peek == EOF) // Exit on EOF
-			exit(0);
+	while (peek <= ' ')
 		next();
-	}
 }
 
 void *body(void)
@@ -447,7 +455,7 @@ void *eval(void *x, void *env)
 
 // **************** REPL ****************
 
-int main()
+int main(int argc, char **argv)
 {
 	// Set up symbols using X macro
 #define COPY_SYM(sym, id) \
@@ -456,8 +464,12 @@ int main()
 		next_sym += sym[0] + 1;
 	FOREACH_SYMVAR(COPY_SYM)
 
-	// Pre-load useful definitions
-	preload = fopen(RCFILE, "r");
+	// Change file set from defaults, if specified
+	if (argc > 1) {
+		num_files = argc - 1;
+		files = argv + 1;
+	}
+	next_file_or_exit();
 
 	// Run REPL
 	void *nil = NULL;
