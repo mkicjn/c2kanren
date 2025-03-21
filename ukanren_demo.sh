@@ -1,14 +1,14 @@
 #!/bin/bash
 
 demo () {
-	echo "cat $1 | $2"
-	cat $1 | $2
+	echo "$1 rc.lisp $2"
+	$1 rc.lisp $2
 	echo
 }
 
 make || exit 1
 echo
-demo ukanren.lisp ./lisp
-demo ukanren-small.lisp ./lisp-small
-demo ukanren-annotated.lisp ./lisp
-demo ukanren-old.lisp ./lisp
+demo ./lisp ukanren.lisp
+demo ./lisp-small ukanren-small.lisp
+demo ./lisp ukanren-annotated.lisp
+demo ./lisp ukanren-old.lisp
