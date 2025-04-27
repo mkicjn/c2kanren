@@ -36,6 +36,7 @@
 #ifdef DEBUG
 #undef DEBUG
 #define DEBUG(stmt) stmt
+#define PROFILE
 #else
 #define DEBUG(stmt)
 #endif
@@ -466,13 +467,15 @@ void *copy(void *x, ptrdiff_t diff)
 	return res;
 }
 
+DEBUG(static double gctime = 0.0;)
+
 void gc(void **ret, void **env)
 {
 	// Copying garbage collection for a return value and the environment
 	if (next_cell == pre_eval) // Elide useless calls
 		return;
 #ifndef DISABLE_GC
-	TRACE(clock_t start = clock();)
+	DEBUG(clock_t start = clock();)
 	// Copy the return value and environment as needed, offsetting cells to match their post-GC position
 	void **pre_copy = next_cell;
 	ptrdiff_t diff = pre_copy - pre_eval;
@@ -485,7 +488,8 @@ void gc(void **ret, void **env)
 	next_cell = pre_eval + copy_size;
 	*env = post_gc_env;
 	*ret = post_gc_ret;
-	TRACE(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	DEBUG(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	DEBUG(gctime += ms;)
 	TRACE(printf("Cells used: %ld -> %ld (%ld copied, %.3fms)\n", pre_copy - cells, next_cell - cells, copy_size, ms);)
 #else
 	TRACE(printf("Cells used: %ld\n", next_cell - cells);)
@@ -615,11 +619,13 @@ void *eval_step(void **cont, void **envp)
 	return x;
 }
 
+DEBUG(static double evaltime = 0.0;)
+
 void *eval(void *x, void *env)
 {
 	// Tail-call optimized eval
-	TRACE(clock_t start = clock();)
-	TRACE(static int level = 0; level++;)
+	DEBUG(clock_t start = clock();)
+	DEBUG(static int level = 0; level++;)
 	TRACE(printf("%*sL%d eval: ", 4*level, "", level); print(x); printf("\n");)
 	void **old_pre_eval = pre_eval;
 	pre_eval = next_cell;
@@ -638,9 +644,10 @@ void *eval(void *x, void *env)
 #endif
 		TRACE(printf("%*sL%d step: ", 4*level, "", level); print(x); printf("\n");)
 	}
-	TRACE(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	DEBUG(level--;)
+	DEBUG(double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;)
+	DEBUG(evaltime += (level == 0 ? ms : 0.0);)
 	TRACE(printf("%*sL%d result: ", 4*level, "", level); print(ret); printf(" (%.3fms)\n", ms);)
-	TRACE(level--;)
 	
 	if (ret == ERROR) {
 		printf("\033[33mWarning: error evaluating ");
@@ -693,6 +700,7 @@ int main(int argc, char **argv)
 			gc(&expr, &defines);
 			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)
 		}
+		DEBUG(evaltime = 0.0; gctime = 0.0;)
 		void *res = eval(expr, NULL);
 		if (IN(res, cells) && car(res) == DEFINE) {
 			// Handle defines
@@ -705,6 +713,8 @@ int main(int argc, char **argv)
 			DEBUG(printf("\033[m"));
 			printf("\n");
 		}
+		DEBUG(printf("\033[33mEval time: %.3fms\nGC time: %.3fms\033[m\n", evaltime, gctime);)
+		DEBUG(evaltime = 0.0; gctime = 0.0;)
 		gc(&nil, &defines); // Destroy return value and keep global definitions
 		DEBUG(printf("\033[36mCells used: %ld\033[m\n", next_cell - cells);)
 	}
