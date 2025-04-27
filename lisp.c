@@ -714,7 +714,6 @@ int main(int argc, char **argv)
 			printf("\n");
 		}
 		DEBUG(printf("\033[33mEval time: %.3fms\nGC time: %.3fms\033[m\n", evaltime, gctime);)
-		DEBUG(evaltime = 0.0; gctime = 0.0;)
 		gc(&nil, &defines); // Destroy return value and keep global definitions
 		DEBUG(printf("\033[36mCells used: %ld\033[m\n", next_cell - cells);)
 	}
