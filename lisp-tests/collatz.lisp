@@ -1,6 +1,13 @@
-; This Collatz sequence benchmark used to run about 16% faster here than in the CHICKEN interpreter
-; It was still about 87x slower than paraforth, though ;)
-; TODO: Investigate why it's much slower now - definitions from rc.lisp slowing down the environment?
+; With "inlining", this Collatz sequence benchmark is about as fast as the CHICKEN interpreter
+(defmacro (inline f) (` defmacro (, f . args) (cons , (eval f) args)))
+
+(inline +)
+(inline -)
+(inline *)
+(inline /)
+(inline mod)
+(inline max)
+(inline =)
 
 ; Also included: a small demo of default variables
 (define collatz
