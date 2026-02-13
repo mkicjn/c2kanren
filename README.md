@@ -6,6 +6,8 @@ build from an imperative language (C), to a functional language (Lisp), to a log
 
 A key element of this approach is strong support for tail-call optimization (TCO) and aggressive garbage collection (GC).
 
+***Note: Recent revisions to the Lisp interpreter and repository as a whole have rendered below information out-of-date - work in progress, will update soon.***
+
 When compiled with `gcc -Os` on a modern Linux OS, the `lisp-small` implementation is just 1.7 KB larger than Hello World (17.6 KB vs. 15.9 KB).
 Yet, it remains powerful enough to meaningfully host its own port of microKanren - without fear of exhausting memory or stack space.
 
