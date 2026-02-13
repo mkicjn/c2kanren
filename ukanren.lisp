@@ -57,7 +57,7 @@
 ; A substitution list can be lifted into a stream by putting it in a list
 (defun (unit s) (cons s mzero))
 ; Streams can also be promises, which are nullary functions that return a stream
-(defun (promise? x) (eq (type x) 'lambda))
+(defun (promise? x) (eq (caar x) 'lambda))
 ; The initial state to start evaluating a toplevel goal from is the empty list
 (define init-state ())
 

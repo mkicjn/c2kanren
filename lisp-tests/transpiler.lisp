@@ -238,8 +238,8 @@
 (defun (dedup ls)
   (cond ((atom ls) ls)
 	(t (let* ((lsd (dedup (cdr ls)))
-		  (match (get-match (cadar ls) lsd)))
-	     (cond (match lsd)
+		  (found-match (get-match (cadar ls) lsd)))
+	     (cond (found-match lsd)
 		   (t (cons (car ls) lsd)))))))
 
 
@@ -273,8 +273,8 @@
 (define test
   '(cond ((atom ls) ls)
 	 (t (let* ((lsd (dedup (cdr ls)))
-		   (match (get-match (cadar ls) lsd)))
-	      (cond (match lsd)
+		   (found-match (get-match (cadar ls) lsd)))
+	      (cond (found-match lsd)
 		    (t (cons (car ls) lsd)))))))
 test
 (define test (dedup (ssa (expand test))))

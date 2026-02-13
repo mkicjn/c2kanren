@@ -17,7 +17,6 @@ run_test_file () {
 make -C .. || exit 1
 echo
 for file in *.lisp; do
-	run_test_file $file ../lisp
-	run_test_file $file ../lisp-small
+	run_test_file $file ../c2klisp
 	echo
 done

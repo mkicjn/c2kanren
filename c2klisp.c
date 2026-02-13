@@ -1,3 +1,4 @@
+//usr/bin/env tcc $CFLAGS -run $0 $@; exit $?
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -29,38 +30,41 @@
 #define DEBUG(x)
 #endif
 
-#ifndef RCFILE
-#define RCFILE "rc.lisp"
-#endif
-
 
 // **************** Top-level definitions ****************
 
 // X macro: Built-in symbols
 #define FOREACH_SYMVAR(X) \
-	X("\001t", t) \
-	X("\004cons", cons) \
-	X("\003car", car) \
-	X("\003cdr", cdr) \
-	X("\004atom", atom) \
-	X("\002eq", eq) \
-	X("\005quote", quote) \
-	X("\004cond", cond) \
-	X("\006lambda", lambda) \
-	X("\006define", define) \
-	X("\004eval", eval) \
-	X("\005fexpr", fexpr) \
-	X("\006expand", expand) \
-	X("\006gensym", gensym)
+	X("\001t", sym_t) \
+	X("\004cons", sym_cons) \
+	X("\003car", sym_car) \
+	X("\003cdr", sym_cdr) \
+	X("\004atom", sym_atom) \
+	X("\002eq", sym_eq) \
+	X("\005quote", sym_quote) \
+	X("\002if", sym_if) \
+	X("\006lambda", sym_lambda) \
+	X("\006define", sym_define) \
+	X("\004eval", sym_eval) \
+	X("\006expand", sym_expand) \
+	X("\006gensym", sym_gensym) \
+	X("\001+", sym_add) \
+	X("\001-", sym_sub) \
+	X("\001*", sym_mul) \
+	X("\001/", sym_div) \
+	X("\001%", sym_mod) \
+	X("\001>", sym_grt) \
+	X("\001=", sym_equ)
 
 // Declare character pointer variables for each built-in symbol
-#define DECLARE_SYMVAR(sym, id) char *sym_##id;
+#define DECLARE_SYMVAR(sym, id) char *id;
 FOREACH_SYMVAR(DECLARE_SYMVAR)
 
 // Designated sentinel values (for when a value is needed that cannot be mistaken for an ordinary input or computation)
 #define ERROR     ((void *)1)  // used as a generic error value
 #define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
 #define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
+#define NUMBER    ((void *)4)  // used for signaling that a cell's cdr has a raw numeric value
 
 
 // **************** Memory regions and region-based type inference ****************
@@ -95,18 +99,23 @@ void *cons(void *x, void *y)
 #define CAR(l) ((void **)(l))
 #define CDR(l) ((void **)(l) + 1)
 
+static inline bool atom(void *l)
+{
+	return !IN(l, cells) || *CAR(l) == NUMBER;
+}
+
 static inline void *car(void *l)
 {
 	if (!l)
 		return NULL;
-	return IN(l, cells) ? *CAR(l) : ERROR;
+	return !atom(l) ? *CAR(l) : ERROR;
 }
 
 static inline void *cdr(void *l)
 {
 	if (!l)
 		return NULL;
-	return IN(l, cells) ? *CDR(l) : ERROR;
+	return !atom(l) ? *CDR(l) : ERROR;
 }
 
 // Convenience macros
@@ -115,10 +124,18 @@ static inline void *cdr(void *l)
 
 #define caar(x) car(car(x))
 #define cadar(x) car(cdr(car(x)))
-#define cadr(x) car(cdr(x))
-#define caddr(x) car(cdr(cdr(x)))
 #define caddar(x) car(cdr(cdr(car(x))))
+#define cadddr(x) car(cdr(cdr(cdr(x))))
+#define caddr(x) car(cdr(cdr(x)))
+#define cadr(x) car(cdr(x))
 #define cdar(x) cdr(car(x))
+
+// Number-related definitions
+#define NUM intptr_t
+#define NUM_FMT "%ld"
+#define ISNUM(x) (IN((x),cells) && *CAR(x) == NUMBER)
+#define UNWRAP(x) (NUM)(*CDR(x))
+#define WRAP(x) cons(NUMBER, (void *)(x))
 
 // Value printing
 void print(void *x)
@@ -126,11 +143,15 @@ void print(void *x)
 	if (!x) {
 		printf("()");
 	} else if (IN(x, cells)) {
+		if (*CAR(x) == NUMBER) {
+			printf(NUM_FMT, UNWRAP(x));
+			return;
+		}
 		// For lists, first print the head
 		printf("(");
 		print(car(x));
 		// Then print successive elements until encountering NIL or atom
-		for (x = cdr(x); IN(x, cells); x = cdr(x)) {
+		for (x = cdr(x); !atom(x); x = cdr(x)) {
 			printf(" ");
 			print(car(x));
 		}
@@ -156,7 +177,9 @@ void print(void *x)
 
 // **************** Parser ****************
 
-void *read(void);
+#ifndef RCFILE
+#define RCFILE "rc.lisp"
+#endif
 
 // Default files: RCFILE followed by stdin
 int num_files = 2;
@@ -197,6 +220,7 @@ void space(void)
 		next();
 }
 
+void *read(void);
 void *body(void)
 {
 	// Parse a list body (i.e., without parentheses)
@@ -242,7 +266,12 @@ void *symbol(void)
 	if (next_sym == s) // Disallow empty symbols
 		return ERROR;
 	*s = next_sym - s;
-	next_sym++;
+	*(++next_sym) = '\0';
+	NUM n;
+	if (sscanf(&s[1], NUM_FMT, &n) > 0) {
+		next_sym = s;
+		return WRAP(n);
+	}
 	return intern(s);
 }
 
@@ -284,11 +313,11 @@ void *copy(void *x, ptrdiff_t diff)
 	// Copy an object, offsetting all cell pointers
 	if (!IN(x, cells) || (void **)x < pre_eval) // No need to copy values below the pre-eval point
 		return x;
-	if (car(x) == FORWARD) // No need to copy values that have already been copied
+	if (*CAR(x) == FORWARD) // No need to copy values that have already been copied
 		return cdr(x);
 	// Deep copy the value normally
-	void *a = copy(car(x), diff);
-	void *d = copy(cdr(x), diff);
+	void *a = *CAR(x) == NUMBER ?  NUMBER : copy(car(x), diff);
+	void *d = *CAR(x) == NUMBER ? *CDR(x) : copy(cdr(x), diff);
 	void *res = (void **)cons(a, d) - diff;
 	// Leave a forward pointer to indicate that the cell has already been copied
 	*CAR(x) = FORWARD;
@@ -316,11 +345,12 @@ void gc(void **ret, void **env)
 	TRACE(printf("Cells used: %ld -> %ld (%ld copied)\n", pre_copy - cells, next_cell - cells, copy_size);)
 }
 
-void *bind(void *k, void *v, void *env)
+void *set(void *k, void *v, void *env)
 {
 	// Try to update an existing binding for k from this eval call
 	for (void *e = env; e > (void *)pre_eval; e = cdr(e)) {
 		if (caar(e) == k) {
+			// Important: destructively modify env for GC
 			*CDR(car(e)) = v;
 			return env;
 		}
@@ -332,53 +362,41 @@ void *bind(void *k, void *v, void *env)
 
 /* **************** Interpreter **************** */
 
-void *defines = NULL; // Global Lisp environment
+void *globals = NULL;
 
-void *eval(void *x, void *env);
-
-void *assoc(void *s, void *env)
+void *get(void *s, void *env)
 {
-	for (void *kvps = env; IN(kvps, cells); kvps = cdr(kvps))
+	for (void *kvps = env; !atom(kvps); kvps = cdr(kvps))
 		if (s == caar(kvps))
 			return cdar(kvps);
-	if (env != defines)
-		return assoc(s, defines);
+	if (env != globals)
+		return get(s, globals);
 	return ERROR;
 }
 
-void *evlis(void *l, void *env)
+void *map(void *(*f)(void *x, void *env), void *l, void *env)
 {
 	if (!l)
 		return NULL;
-	if (IN(l, syms))
-		return eval(l, env);
-	return cons(eval(car(l), env), evlis(cdr(l), env));
+	if (atom(l))
+		return f(l, env);
+	return cons(f(car(l), env), map(f, cdr(l), env));
 }
 
 void *pairlis(void *ks, void *vs, void *env)
 {
-	for (; IN(ks, cells) && IN(vs, cells); ks = cdr(ks), vs = cdr(vs))
-		env = bind(car(ks), car(vs), env);
+	for (; !atom(ks) && !atom(vs); ks = cdr(ks), vs = cdr(vs))
+		env = set(car(ks), car(vs), env);
 	if (!ks)
 		return env;
-	return bind(ks, vs, env);
+	return set(ks, vs, env);
 }
 
-void *evcon(void *cs, void *env)
-{
-	if (!cs)
-		return NULL;
-	if (eval(caar(cs), env))
-		return cadar(cs);
-	return evcon(cdr(cs), env);
-}
-
+void *eval(void *x, void *env);
 void *apply(void *f, void *args, void **env)
 {
-	if (caar(f) == sym_fexpr) // fexpr -> continue from result of evaluating body with bound args
-		return eval(caddar(f), pairlis(cadar(f), args, cdr(f)));
 	if (caar(f) == sym_lambda) { // lambda -> continue from body after evaluating and binding args
-		*env = pairlis(cadar(f), evlis(args, *env), cdr(f));
+		*env = pairlis(cadar(f), map(eval, args, *env), cdr(f));
 		return caddar(f);
 	}
 	return ERROR;
@@ -386,17 +404,34 @@ void *apply(void *f, void *args, void **env)
 
 void *eval_base(void *x, void *env)
 {
-	// Handle atomic expressions
+	// Handle self-evaluating expressions
 	if (!x) // ()
 		return NULL;
 	if (x == sym_t) // t
 		return x;
 	if (IN(x, syms)) // symbol
-		return assoc(x, env);
-	if (!IN(x, cells)) // sentinel value
+		return get(x, env);
+	if (atom(x))
 		return x;
 
-	// Handle primitive function applications
+#define TOBOOL(x) ((x) ? sym_t : NULL)
+#define BINOP(sym, op, conv) \
+	if (car(x) == sym) { \
+		void *a = eval(cadr(x), env); \
+		void *b = eval(caddr(x), env); \
+		if (ISNUM(a) && ISNUM(b)) \
+			return conv(UNWRAP(a) op UNWRAP(b)); \
+		return ERROR; \
+	}
+	BINOP(sym_add,  +, WRAP)
+	BINOP(sym_sub,  -, WRAP)
+	BINOP(sym_mul,  *, WRAP)
+	BINOP(sym_div,  /, WRAP)
+	BINOP(sym_mod,  %, WRAP)
+	BINOP(sym_grt,  >, TOBOOL)
+	BINOP(sym_equ, ==, TOBOOL)
+
+	// Handle primitive functions
 	if (car(x) == sym_quote) // quote
 		return cadr(x);
 	if (car(x) == sym_car) // car
@@ -404,12 +439,12 @@ void *eval_base(void *x, void *env)
 	if (car(x) == sym_cdr) // cdr
 		return cdr(eval(cadr(x), env));
 	if (car(x) == sym_atom) // atom
-		return !IN(eval(cadr(x), env), cells) ? sym_t : NULL;
+		return atom(eval(cadr(x), env)) ? sym_t : NULL;
 	if (car(x) == sym_eq) // eq
 		return eval(cadr(x), env) == eval(caddr(x), env) ? sym_t : NULL;
 	if (car(x) == sym_cons) // cons
 		return cons(eval(cadr(x), env), eval(caddr(x), env));
-	if (car(x) == sym_lambda || car(x) == sym_fexpr) // lambda/fexpr
+	if (car(x) == sym_lambda) // lambda
 		return cons(x, env);
 	if (car(x) == sym_gensym) { // gensym
 		next_sym[0] = 0;
@@ -431,9 +466,9 @@ void *eval(void *x, void *env)
 	while ((ret = eval_base(x, env)) == CONTINUE) {
 		if (car(x) == sym_eval) // eval -> continue from expression given by evaluated argument
 			x = eval(cadr(x), env);
-		else if (car(x) == sym_cond) // cond -> continue from expression given by evcon
-			x = evcon(cdr(x), env);
-		else // closure application -> continue from expression given by apply (lambda body / fexpr result)
+		else if (car(x) == sym_if) // if -> continue from expression switched by condition
+			x = eval(cadr(x), env) ? caddr(x) : cadddr(x);
+		else // must be a function application -> continue from apply (lambda body / fexpr result)
 			x = apply(eval(car(x), env), cdr(x), &env);
 		// GC for intermediate eval steps
 		gc(&x, &env);
@@ -459,15 +494,15 @@ int main(int argc, char **argv)
 {
 	// Set up symbols using X macro
 #define COPY_SYM(sym, id) \
-		sym_##id = next_sym; \
+		id = next_sym; \
 		memcpy(next_sym, sym, sym[0] + 1); \
 		next_sym += sym[0] + 1;
 	FOREACH_SYMVAR(COPY_SYM)
 
 	// Change file set from defaults, if specified
 	if (argc > 1) {
-		num_files = argc - 1;
 		files = argv + 1;
+		num_files = argc - 1;
 	}
 	next_file_or_exit();
 
@@ -476,15 +511,15 @@ int main(int argc, char **argv)
 	for (;;) {
 		void *expr = read();
 		DEBUG(printf("\033[34mRead: "); print(expr); printf("\033[m\n");)
-		void *expand = assoc(sym_expand, defines);
-		if (IN(expand, cells)) {
+		void *expand = get(sym_expand, globals);
+		if (!atom(expand)) {
 			expr = eval(list2(sym_expand, list2(sym_quote, expr)), NULL);
-			gc(&expr, &defines);
+			gc(&expr, &globals);
 			DEBUG(printf("\033[35mExpanded to: "); print(expr); printf("\033[m\n");)
 		}
 		if (car(expr) == sym_define) {
 			void *res = eval(caddr(expr), NULL);
-			defines = bind(cadr(expr), res, defines);
+			globals = set(cadr(expr), res, globals);
 			DEBUG(printf("\033[32mDefined "); print(cadr(expr)); printf(" as: "); print(res); printf("\033[m\n");)
 		} else {
 			void *res = eval(expr, NULL);
@@ -493,7 +528,7 @@ int main(int argc, char **argv)
 			DEBUG(printf("\033[m"));
 			printf("\n");
 		}
-		gc(&nil, &defines);
+		gc(&nil, &globals);
 		DEBUG(printf("\033[36mCells used: %ld\033[m\n", next_cell - cells);)
 	}
 	return 0;

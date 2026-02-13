@@ -1,12 +1,9 @@
-CFLAGS=-Os -Wall -Wextra -pedantic
-LDFLAGS=-lm
+CFLAGS=-O3 -Wall -Wextra -pedantic
 
-ALL=lisp lisp-small
+ALL=c2klisp
 
 all: $(ALL)
 
-%: %.c
-	$(CC) $(CFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

@@ -13,38 +13,38 @@
 
 (define assoc
   (lambda (s l)
-    (cond ((not l) ())
-	  ((eq s (car (car l))) (car l))
-	  (t (assoc s (cdr l))))))
+    (if (eq l ()) ()
+      (if (eq s (car (car l))) (car l)
+	(assoc s (cdr l))))))
 
 (define map
   (lambda (f l)
-    (cond ((not l) ())
-	  ((atom l) (f l))
-	  (t (cons (f (car l)) (map f (cdr l)))))))
+    (if (eq l ()) ()
+      (if (atom l) (f l)
+	(cons (f (car l)) (map f (cdr l)))))))
 
 
 ;; Implementing macro expansion
 
 (define non-expandable
   (lambda (expr)
-    (cond ((atom expr) t)
-	  ((eq (car expr) 'quote) t)
-	  (t ()))))
+    (if (atom expr) t
+      (if (eq (car expr) 'quote) t
+	()))))
 
 (define expand-shallow
   (lambda (rules expr)
-    (cond ((non-expandable expr) expr)
-	  (t ((lambda (rule)
-		(cond ((not rule) expr)
-		      (t (expand-shallow rules (rule . expr)))))
-	      (cdr (assoc (car expr) rules)))))))
+    (if (non-expandable expr) expr
+      ((lambda (rule)
+	 (if (eq rule ()) expr
+	   (expand-shallow rules (rule . expr))))
+       (cdr (assoc (car expr) rules))))))
 
 (define expand-deep
   (lambda (rules expr)
     ((lambda (expr)
-       (cond ((non-expandable expr) expr)
-	     (t (map (curry expand-deep rules) expr))))
+       (if (non-expandable expr) expr
+	 (map (curry expand-deep rules) expr)))
      (expand-shallow rules expr))))
 
 ; Testing macro expansion
@@ -82,6 +82,16 @@
   (list 'define
 	(car name/args)
 	(list 'lambda (cdr name/args) body)))
+
+; Translate `not` into (eq _ ()) and cond into `if` chain
+; (This was added at a later point for compatibility with a newer interpreter)
+(defmacro (not x) (list 'eq () x))
+(defmacro (cond . qs-and-as)
+  (if (atom qs-and-as) ()
+    (if (eq t (car (car qs-and-as)))
+      (car (cdr (car qs-and-as)))
+      (list 'if (car (car qs-and-as)) (car (cdr (car qs-and-as)))
+	    (cons 'cond (cdr qs-and-as))))))
 
 ; Testing those macros
 
@@ -148,8 +158,8 @@
 (append '(1 2 3) '(4))
 
 (define a '(1 2 3))
-(define b '6)
+(define b 6)
 
-(expand-qq '(,@ a 4 , (left '5 '6) ,. b))
+(expand-qq '(,@ a 4 , (left 5 6) ,. b))
 (expand (expand-qq '(,@ a 4 , (left '5 '6) ,. b)))
-(` ,@ a 4 , (left '5 '6) ,. b)
+(` ,@ a 4 , (left 5 6) ,. b)

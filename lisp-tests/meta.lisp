@@ -2,7 +2,7 @@
 (define assoc
   (lambda (s l)
     (cond ((not l) ())
-	  ((eq (car (car l)) s) (cdr (car l)))
+	  ((eq (car (car l)) s) (car l))
 	  (t (assoc s (cdr l))))))
 
 (define evlis
@@ -37,7 +37,7 @@
 (define meta-eval
   (lambda (expr env)
     (cond ((not expr) ())
-	  ((atom expr) (assoc expr env))
+	  ((atom expr) (cdr (assoc expr env)))
 	  ((eq 'quote (car expr)) (car (cdr expr)))
 	  ((eq 'cond (car expr)) (evcon (cdr expr) env))
 	  ((eq 'car (car expr)) (car (meta-eval (car (cdr expr)) env)))
@@ -51,6 +51,6 @@
 	  ((eq 'label (car expr)) (cons expr env))
 	  (t (apply (meta-eval (car expr) env) (cdr expr) env)))))
 
-(meta-eval '((lambda (x) (cons x b)) (cons '0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
+(meta-eval '((lambda (x) (cons x b)) (cons 0 a)) '((a . 1) (b . 2))) ; ((0 . 1) . 2)
 
 (meta-eval '((label f (lambda () (f)))) '((a . 1))) ; infinite recursion
