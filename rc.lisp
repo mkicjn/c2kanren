@@ -129,7 +129,8 @@
 ; Assoc with procedure, `assp`
 (defun (assp f ls)
   (cond ((atom ls) ())
-	((f (caar ls)) (car ls))
+	((f (car ls)) (car ls))
+	; ^ Note unusual difference: passes (car ls) to f, not (caar ls)
 	(t (assp f (cdr ls)))))
 
 ; List equality
@@ -160,10 +161,7 @@
    ident . args))
 
 ; List flattening via append
-(defun (flatten l (cont ident))
-  (cond ((atom l) (cont l))
-	((atom (car l)) (flatten (cdr l) (lambda (x) (cont (cons (car l) x)))))
-	(t (flatten (cdr l) (lambda (x) (cont (append (flatten (car l)) x)))))))
+(defun (flatten ls) (append . ls))
 
 ; Quasiquote syntax
 (defmacro (` . args)
@@ -199,6 +197,10 @@
   (cond ((not l) i)
 	((atom l) l)
 	(t (fold-left f (f i (car l)) (cdr l)))))
+
+; List reverse via left-associative fold
+(defun (reverse ls)
+  (fold-left (lambda (xs x) (cons x xs)) () ls))
 
 ; Pattern matching
 (defun (matches data pattern)
