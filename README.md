@@ -1,5 +1,5 @@
 # c2kanren
-**A very small Lisp interpreter powerful enough to host microKanren**
+**A very small Lisp interpreter powerful enough to host μKanren**
 
 This project was inspired by a number of sources, and it does what it says on the tin:
 build from an imperative language (C), to a functional language (Lisp), to a logic programming language (μKanren).
