@@ -48,6 +48,9 @@
 	X("\004eval", sym_eval) \
 	X("\006expand", sym_expand) \
 	X("\006gensym", sym_gensym) \
+	X("\004type", sym_type) \
+	X("\006symbol", sym_symbol) \
+	X("\006number", sym_number) \
 	X("\001+", sym_add) \
 	X("\001-", sym_sub) \
 	X("\001*", sym_mul) \
@@ -430,6 +433,15 @@ void *eval_base(void *x, void *env)
 	BINOP(sym_mod,  %, WRAP)
 	BINOP(sym_grt,  >, TOBOOL)
 	BINOP(sym_equ, ==, TOBOOL)
+
+	// Runtime type inspection
+	if (car(x) == sym_type) {
+		void *a = eval(cadr(x), env);
+		if (atom(a))
+			return !a || IN(a, syms) ? sym_symbol : sym_number;
+		else
+			return caar(a) == sym_lambda ? sym_lambda : sym_cons;
+	}
 
 	// Handle primitive functions
 	if (car(x) == sym_quote) // quote

@@ -1,4 +1,4 @@
-;; uKanren using pointer equality comparisons only for variables, i.e., not using numbers at all
+;; uKanren using pointer equality to distinguish logic variables (i.e., not using numbers at all)
 
 ;; Supporting non-Kanren definitions
 
