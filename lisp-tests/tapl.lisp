@@ -73,22 +73,46 @@
 	 ((, t1 , t2) (` , (restorenames t1 Γ) , (restorenames t2 Γ)))
 	 (_ (nth t0 Γ) when (eq (type t0) 'number))))
 
+(defun (shift t0 d (c 0))
+  (match t0
+	 ((λ , t1) (` λ , (shift t1 d (+ c 1))))
+	 ((, t1 , t2) (` , (shift t1 d c) , (shift t2 d c)))
+	 (_ t0 when (> c t0))
+	 (_ (+ t0 d))))
+
+(defun (sub j s k)
+  (match k
+	 ((λ , t1) (` λ , (sub (+ j 1) (shift s 1) t1)))
+	 ((, t1 , t2) (` , (sub j s t1) , (sub j s t2)))
+	 (_ s when (eq j k))
+	 (_ k)))
 
 ; (tests)
 '(λ s (λ z z))
-'(λ s (λ z (s (s z))))
-'(λ m (λ n (λ s (λ z ((m s) ((n z) s))))))
-'(λ f ((λ x (f (λ y ((x x) y)))) (λ x (f (λ y ((x x) y))))))
-'((λ x (λ x x)) (λ x x))
-
 (removenames '(λ s (λ z z)))
-(removenames '(λ s (λ z (s (s z)))))
-(removenames '(λ m (λ n (λ s (λ z ((m s) ((n z) s)))))))
-(removenames '(λ f ((λ x (f (λ y ((x x) y)))) (λ x (f (λ y ((x x) y)))))))
-(removenames '((λ x (λ x x)) (λ x x)))
-
 (restorenames '(λ (λ 0)))
+'(λ s (λ z (s (s z))))
+(removenames '(λ s (λ z (s (s z)))))
 (restorenames '(λ (λ (1 (1 0)))))
+'(λ m (λ n (λ s (λ z ((m s) ((n z) s))))))
+(removenames '(λ m (λ n (λ s (λ z ((m s) ((n z) s)))))))
 (restorenames '(λ (λ (λ (λ ((3 1) ((2 0) 1)))))))
+'(λ f ((λ x (f (λ y ((x x) y)))) (λ x (f (λ y ((x x) y))))))
+(removenames '(λ f ((λ x (f (λ y ((x x) y)))) (λ x (f (λ y ((x x) y)))))))
 (restorenames '(λ ((λ (1 (λ ((1 1) 0)))) (λ (1 (λ ((1 1) 0)))))))
+'((λ x (λ x x)) (λ x x))
+(removenames '((λ x (λ x x)) (λ x x)))
 (restorenames '((λ (λ 0)) (λ 0)))
+
+; Exercise 6.2.2
+(shift '(λ (λ (1 (0 2)))) 2)
+(shift '(λ ((0 1) (λ ((0 1) 2)))) 2)
+
+; Exercise 6.2.5
+(defun (Γ-sub Γ . args)
+  (let ((args` (map (lambda (x) (removenames x Γ)) args)))
+    (sub . args`)))
+(Γ-sub '(b a) 'b 'a '(b (λ x (λ y b))))
+(Γ-sub '(b a) 'b '(a (λ z a)) '(b (λ x b)))
+(Γ-sub '(b a) 'b 'a '(λ b (b a)))
+(Γ-sub '(b a) 'b 'a '(λ a (b a)))
