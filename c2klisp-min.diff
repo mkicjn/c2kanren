@@ -1,5 +1,5 @@
---- c2klisp.c	2026-02-13 21:24:55.827751111 -0600
-+++ c2klisp-min.c	2026-02-13 23:07:07.491532661 -0600
+--- c2klisp.c	2026-02-15 20:43:18.252712434 -0600
++++ c2klisp-min.c	2026-02-15 20:36:56.101413747 -0600
 @@ -47,17 +47,7 @@
  	X("\006define", sym_define) \
  	X("\004eval", sym_eval) \
@@ -14,7 +14,7 @@
 -	X("\001/", sym_div) \
 -	X("\001%", sym_mod) \
 -	X("\001>", sym_grt) \
--	X("\001=", sym_equ)
+-	X("\001=", sym_equ) \
 +	X("\006gensym", sym_gensym)
  
  // Declare character pointer variables for each built-in symbol
@@ -83,26 +83,29 @@
  	void *res = (void **)cons(a, d) - diff;
  	// Leave a forward pointer to indicate that the cell has already been copied
  	*CAR(x) = FORWARD;
-@@ -417,32 +390,6 @@
- 	if (atom(x))
- 		return x;
+@@ -419,35 +392,6 @@
+ 	if (car(x) == sym_quote) // quote
+ 		return cadr(x);
  
+-	// Numeric primitives
 -#define TOBOOL(x) ((x) ? sym_t : NULL)
--#define BINOP(sym, op, conv) \
+-#define BINOP(sym, conv, op, err) \
 -	if (car(x) == sym) { \
 -		void *a = eval(cadr(x), env); \
 -		void *b = eval(caddr(x), env); \
 -		if (ISNUM(a) && ISNUM(b)) \
 -			return conv(UNWRAP(a) op UNWRAP(b)); \
--		return ERROR; \
+-		return err; \
 -	}
--	BINOP(sym_add,  +, WRAP)
--	BINOP(sym_sub,  -, WRAP)
--	BINOP(sym_mul,  *, WRAP)
--	BINOP(sym_div,  /, WRAP)
--	BINOP(sym_mod,  %, WRAP)
--	BINOP(sym_grt,  >, TOBOOL)
--	BINOP(sym_equ, ==, TOBOOL)
+-	BINOP(sym_add,   WRAP,  +, ERROR)
+-	BINOP(sym_sub,   WRAP,  -, ERROR)
+-	BINOP(sym_mul,   WRAP,  *, ERROR)
+-	BINOP(sym_div,   WRAP,  /, ERROR)
+-	BINOP(sym_mod,   WRAP,  %, ERROR)
+-	BINOP(sym_grt, TOBOOL,  >, ERROR)
+-	BINOP(sym_equ, TOBOOL, ==, ERROR)
+-	BINOP(sym_eq,  TOBOOL, ==, TOBOOL(a == b))
+-	// ^ Override `eq` to handle numbers
 -
 -	// Runtime type inspection
 -	if (car(x) == sym_type) {
@@ -114,5 +117,5 @@
 -	}
 -
  	// Handle primitive functions
- 	if (car(x) == sym_quote) // quote
- 		return cadr(x);
+ 	if (car(x) == sym_car) // car
+ 		return car(eval(cadr(x), env));
