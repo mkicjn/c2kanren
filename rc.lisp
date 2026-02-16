@@ -133,6 +133,16 @@
 	; ^ Note unusual difference: passes (car ls) to f, not (caar ls)
 	(t (assp f (cdr ls)))))
 
+; Numeric indexing of lists
+(defun (nth n l)
+  (if (> n 0) (nth (- n 1) (cdr l))
+    (car l)))
+
+(defun (position x l (acc 0))
+  (cond ((not l) ())
+	((eq x (car l)) acc)
+	(t (position x (cdr l) (+ acc 1)))))
+
 ; List equality
 (defun (equal a b)
   (cond ((atom a) (eq a b))
