@@ -82,7 +82,7 @@
 	 (_ s when (eq j k))
 	 (_ k)))
 
-(defun (-λ-> t0) ; (small step call by value semantics)
+(defun (-λ-> t0) ; (small-step call by value semantics)
   (match t0
 	 ((λ _) 'stuck)
 	 (((λ , t12) (λ , t22))
@@ -188,7 +188,7 @@
 (equal (times 3 -λ-> (removenames (` (, cplus , c2) , c1)))
        'stuck)
 
-; Exercise 5.3.8
+; Exercises 5.3.8, 7.3.1
 '---
 (defun (λ-norm t0)
   (match t0
@@ -197,13 +197,13 @@
 	 ((λ , t12) (λ-norm t12))
 	 ((, t1 , t2) (and (λ-norm t1) (λ-norm t2)))))
 
-(defun (λ↓↓ t0) ; (big step normal order semantics)
+(defun (λ↓↓ t0) ; (big-step semantics)
   (match t0
 	 (_ t0 when (λ-norm t0))
-	 ((λ , t12) (` λ , (λ↓↓ t12)) when (not (λ-norm t12)))
 	 ((, t1 , t2) (λ↓↓ (` , t1 , (λ↓↓ t2))) when (not (λ-norm t2)))
 	 ((, t1 , t2) (λ↓↓ (` , (λ↓↓ t1) , t2)) when (not (λ-norm t1)))
-	 ; ^^^ Previous 3 can all be rearranged
+	 ((λ , t12) (` λ , (λ↓↓ t12)) when (not (λ-norm t12)))
+	 ; ^^^ Previous 3 can all be rearranged to change eval order
 	 (((λ , t12) , t2) (λ↓↓ (shift -1 (sub 0 (shift 1 t2) t12))))
 	 (_ (` wrong , t0))))
 
