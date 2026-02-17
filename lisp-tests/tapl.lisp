@@ -68,25 +68,25 @@
 	 ((, t1 , t2) (` , (removenames t1 Γ) , (removenames t2 Γ)))
 	 (_ (position t0 Γ) when (atom t0))))
 
-(defun (shift t0 d (c 0))
+(defun (shift d t0 (c 0))
   (match t0
-	 ((λ , t1) (` λ , (shift t1 d (+ c 1))))
-	 ((, t1 , t2) (` , (shift t1 d c) , (shift t2 d c)))
+	 ((λ , t1) (` λ , (shift d t1 (+ c 1))))
+	 ((, t1 , t2) (` , (shift d t1 c) , (shift d t2 c)))
 	 (_ t0 when (> c t0))
 	 (_ (+ t0 d))))
 
 (defun (sub j s k)
   (match k
-	 ((λ , t1) (` λ , (sub (+ j 1) (shift s 1) t1)))
+	 ((λ , t1) (` λ , (sub (+ j 1) (shift 1 s) t1)))
 	 ((, t1 , t2) (` , (sub j s t1) , (sub j s t2)))
 	 (_ s when (eq j k))
 	 (_ k)))
 
-(defun (-λ-> t0) ; (single step call by value semantics)
+(defun (-λ-> t0) ; (small step call by value semantics)
   (match t0
 	 ((λ _) 'stuck)
 	 (((λ , t12) (λ , t22))
-	  (shift (sub 0 (shift (` λ , t22) 1) t12) -1))
+	  (shift -1 (sub 0 (shift 1 (` λ , t22)) t12)))
 	 (((λ , t12) , t2)
 	  (` (λ , t12) , (-λ-> t2)))
 	 ((, t1 , t2)
@@ -94,6 +94,7 @@
 	 (_ 'stuck)))
 
 (define -λ->* (make->* -λ->))
+
 
 ; (tests)
 
@@ -126,8 +127,8 @@
 
 ; Exercise 6.2.2
 '---
-(shift '(λ (λ (1 (0 2)))) 2)
-(shift '(λ ((0 1) (λ ((0 1) 2)))) 2)
+(shift 2 '(λ (λ (1 (0 2)))))
+(shift 2 '(λ ((0 1) (λ ((0 1) 2)))))
 
 ; Exercise 6.2.5
 '---
@@ -151,23 +152,25 @@
 (levels '(λ ((λ (1 0)) 0)))
 (indices '(λ ((λ (0 1)) 0)))
 
-(defun (test x)
+(defun (test-I←→L x)
   (let* ((x` (levels x))
 	 (x`` (indices x`)))
     (list (equal x x``) x '\
 	  '\  x`)))
 
-(test '(λ (λ 0)))
-(test '(λ (λ (1 (1 0)))))
-(test '(λ (λ (λ (λ ((3 1) ((2 0) 1)))))))
-(test '(λ ((λ (1 (λ ((1 1) 0)))) (λ (1 (λ ((1 1) 0)))))))
-(test '((λ (λ 0)) (λ 0)))
+(test-I←→L '(λ (λ 0)))
+(test-I←→L '(λ (λ (1 (1 0)))))
+(test-I←→L '(λ (λ (λ (λ ((3 1) ((2 0) 1)))))))
+(test-I←→L '(λ ((λ (1 (λ ((1 1) 0)))) (λ (1 (λ ((1 1) 0)))))))
+(test-I←→L '((λ (λ 0)) (λ 0)))
 
 ; Evaluator
 '---
 (define c0 '(λ s (λ z z)))
 (define c1 '(λ s (λ z (s z))))
 (define c2 '(λ s (λ z (s (s z)))))
+(define c3 '(λ s (λ z (s (s (s z))))))
+(define c4 '(λ s (λ z (s (s (s (s z)))))))
 (define scc '(λ n (λ s (λ z (s ((n s) z))))))
 (define cplus '(λ m (λ n (λ s (λ z ((m s) ((n s) z)))))))
 
@@ -184,3 +187,36 @@
        '(λ (λ (((λ (λ (1 (1 0)))) 1) (((λ (λ (1 0))) 1) 0)))))
 (equal (times 3 -λ-> (removenames (` (, cplus , c2) , c1)))
        'stuck)
+
+; Exercise 5.3.8
+'---
+(defun (λ-norm t0)
+  (match t0
+	 (_ t when (atom t0))
+	 (((λ _) _) ())
+	 ((λ , t12) (λ-norm t12))
+	 ((, t1 , t2) (and (λ-norm t1) (λ-norm t2)))))
+
+(defun (λ↓↓ t0) ; (big step normal order semantics)
+  (match t0
+	 (_ t0 when (λ-norm t0))
+	 ((λ , t12) (` λ , (λ↓↓ t12)) when (not (λ-norm t12)))
+	 ((, t1 , t2) (λ↓↓ (` , t1 , (λ↓↓ t2))) when (not (λ-norm t2)))
+	 ((, t1 , t2) (λ↓↓ (` , (λ↓↓ t1) , t2)) when (not (λ-norm t1)))
+	 ; ^^^ Previous 3 can all be rearranged
+	 (((λ , t12) , t2) (λ↓↓ (shift -1 (sub 0 (shift 1 t2) t12))))
+	 (_ (` wrong , t0))))
+
+(λ-norm (removenames '(λ x x)))
+(λ-norm (removenames '(λ x (λ y (x y)))))
+(λ-norm (removenames '(λ x (λ y (x (λ z (z z)))))))
+(not (λ-norm (removenames '(λ x (λ y (x ((λ z (z z)) y)))))))
+
+(equal (λ↓↓ (removenames '(λ x (λ y (x ((λ z (z z)) y))))))
+       (removenames '(λ x (λ y (x (y y))))))
+
+; 2 + 2 = 4
+(equal (λ↓↓ (removenames (` (, cplus , c2) , c2)))
+       (removenames c4))
+(list (removenames (` (, cplus , c2) , c2)) '\
+      '→ (λ↓↓ (removenames (` (, cplus , c2) , c2))))
