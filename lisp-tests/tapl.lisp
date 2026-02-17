@@ -220,3 +220,31 @@
        (removenames c4))
 (list (removenames (` (, cplus , c2) , c2)) '\
       '→ (λ↓↓ (removenames (` (, cplus , c2) , c2))))
+
+
+;; Experimental nameless term reducer (not from the book) - explicit substitution?
+; TODO: Test more thoroughly. Prove correctness?
+'---
+
+(defun (is-λ t0)
+  (and (not (atom t0)) (eq 'λ (car t0))))
+
+(defun (↓ t0 (Γ ()))
+  (match t0
+	 (_ (let ((b (nth t0 Γ)))
+	      (if (eq b 'ω) t0 b))
+	    when (atom t0))
+	 ((λ , t1) (` λ , (↓ t1 (cons 'ω Γ))))
+	 (((λ , t12) , t2) (↓ t12 (cons t2 Γ)))
+	 ((, t1 , t2)
+	  (let ((t1` (↓ t1 Γ))
+		(t2` (↓ t2 Γ)))
+	    (let ((t0` (` , t1` , t2`)))
+	      (if (is-λ t1`) (↓ t0` Γ) t0`))))
+	 (_ 'wrong)))
+
+
+(↓ (removenames (` (, cplus , c0) , c4)))
+(↓ (removenames (` (, cplus , c1) , c3)))
+(↓ (removenames (` (, cplus , c2) , c2)))
+(↓ (removenames (` (, cplus , c3) , c1)))
