@@ -232,9 +232,9 @@
 (defun (↓ t0 (Γ ()))
   (match t0
 	 (_ (let ((b (nth t0 Γ)))
-	      (if (eq b 'ω) t0 b))
+	      (if (eq b ()) t0 b))
 	    when (atom t0))
-	 ((λ , t1) (` λ , (↓ t1 (cons 'ω Γ))))
+	 ((λ , t1) (` λ , (↓ t1 (cons () Γ))))
 	 (((λ , t12) , t2) (↓ t12 (cons t2 Γ)))
 	 ((, t1 , t2)
 	  (let ((t1` (↓ t1 Γ))
