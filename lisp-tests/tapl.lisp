@@ -173,6 +173,8 @@
 (define c4 '(λ s (λ z (s (s (s (s z)))))))
 (define scc '(λ n (λ s (λ z (s ((n s) z))))))
 (define cplus '(λ m (λ n (λ s (λ z ((m s) ((n s) z)))))))
+(define cmult '(λ m (λ n (λ s (m (n s))))))
+(define cpow  '(λ m (λ n (n m))))
 
 (defun (times n f x)
   (if (> n 0)
@@ -218,12 +220,18 @@
 ; 2 + 2 = 4
 (equal (λ↓↓ (removenames (` (, cplus , c2) , c2)))
        (removenames c4))
-(list (removenames (` (, cplus , c2) , c2)) '\
-      '→ (λ↓↓ (removenames (` (, cplus , c2) , c2))))
 
+(defun (show t0)
+  (let ((t0` (removenames t0)))
+    (list t0` '\
+	  '→ (λ↓↓ t0`))))
+
+(show (` (, cplus , c2) , c2)) ; 2 + 2 = 4
+(show (` (, cpow  , c2) , c3)) ; 2³ = 8
+(show (` (, cpow , cplus) , cplus))
 
 ;; Experimental nameless term reducer (not from the book) - explicit substitution?
-; TODO: Test more thoroughly. Prove correctness?
+; TODO: Broken - but would be nice to get something like this working
 '---
 
 (defun (is-λ t0)
@@ -248,3 +256,6 @@
 (↓ (removenames (` (, cplus , c1) , c3)))
 (↓ (removenames (` (, cplus , c2) , c2)))
 (↓ (removenames (` (, cplus , c3) , c1)))
+
+(eq (λ↓↓ (removenames (` (, cmult , c2) , c3)))
+    (↓ (removenames (` (, cmult , c2) , c3))))
