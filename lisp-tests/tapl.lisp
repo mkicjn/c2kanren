@@ -259,3 +259,25 @@
 
 (eq (λ↓↓ (removenames (` (, cmult , c2) , c3)))
     (↓ (removenames (` (, cmult , c2) , c3))))
+
+
+;; Chapter 8 - typed arithmetic expressions
+'---
+
+(defun (NB-type t0)
+  (match t0
+	 (false 'Bool)
+	 (true  'Bool)
+	 (zero  'Nat)
+	 ((succ , n) 'Nat when (eq (NB-type n) 'Nat))
+	 ((pred , n) 'Nat when (eq (NB-type n) 'Nat))
+	 ((iszero , n) 'Bool when (eq (NB-type n) 'Nat))
+	 ((if , t1 then , t2 else , t3)
+	  (NB-type t2)
+	  ; ^ TODO: Redundant calculation from guard, but unclear how to avoid
+	  when (and (eq (NB-type t1) 'Bool)
+		    (eq (NB-type t2) (NB-type t3))))))
+
+(eq 'Nat (NB-type '(if (iszero (succ (pred zero))) then zero else (succ zero))))
+(eq 'Bool (NB-type '(iszero (if (iszero (succ (pred zero))) then zero else (succ zero)))))
+(eq '() (NB-type '(pred (iszero (if (iszero (succ (pred zero))) then zero else (succ zero))))))
