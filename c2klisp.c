@@ -48,8 +48,6 @@
 	X("\004eval", sym_eval) \
 	X("\006expand", sym_expand) \
 	X("\006gensym", sym_gensym) \
-	X("\006symbol", sym_symbol) \
-	X("\006number", sym_number) \
 	X("\001+", sym_add) \
 	X("\001-", sym_sub) \
 	X("\001*", sym_mul) \

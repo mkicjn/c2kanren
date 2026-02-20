@@ -61,6 +61,16 @@
 
 ;; Untyped lambda calculus (λ)
 
+; Numeric indexing of lists
+(defun (nth n l)
+  (if (> n 0) (nth (- n 1) (cdr l))
+    (car l)))
+
+(defun (position x l (acc 0))
+  (cond ((not l) ())
+	((eq x (car l)) acc)
+	(t (position x (cdr l) (+ acc 1)))))
+
 ; Exercise 6.1.5
 (defun (removenames t0 (Γ ()))
   (match t0

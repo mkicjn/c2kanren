@@ -1,12 +1,12 @@
---- c2klisp.c	2026-02-19 20:40:19.091139833 -0600
-+++ c2klisp-min.c	2026-02-19 20:39:25.040775478 -0600
-@@ -47,16 +47,7 @@
+--- c2klisp.c	2026-02-19 23:29:34.827516164 -0600
++++ c2klisp-min.c	2026-02-19 23:30:49.320248056 -0600
+@@ -45,16 +45,8 @@
+ 	X("\002if", sym_if) \
+ 	X("\006lambda", sym_lambda) \
  	X("\006define", sym_define) \
- 	X("\004eval", sym_eval) \
+-	X("\004eval", sym_eval) \
  	X("\006expand", sym_expand) \
 -	X("\006gensym", sym_gensym) \
--	X("\006symbol", sym_symbol) \
--	X("\006number", sym_number) \
 -	X("\001+", sym_add) \
 -	X("\001-", sym_sub) \
 -	X("\001*", sym_mul) \
@@ -18,7 +18,7 @@
  
  // Declare character pointer variables for each built-in symbol
  #define DECLARE_SYMVAR(sym, id) char *id;
-@@ -66,7 +57,6 @@
+@@ -64,7 +56,6 @@
  #define ERROR     ((void *)1)  // used as a generic error value
  #define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
  #define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
@@ -26,7 +26,7 @@
  
  
  // **************** Memory regions and region-based type inference ****************
-@@ -103,7 +93,7 @@
+@@ -101,7 +92,7 @@
  
  static inline bool atom(void *l)
  {
@@ -35,7 +35,7 @@
  }
  
  static inline void *car(void *l)
-@@ -132,23 +122,12 @@
+@@ -130,23 +121,12 @@
  #define cadr(x) car(cdr(x))
  #define cdar(x) cdr(car(x))
  
@@ -59,7 +59,7 @@
  		// For lists, first print the head
  		printf("(");
  		print(car(x));
-@@ -269,11 +248,6 @@
+@@ -267,11 +247,6 @@
  		return ERROR;
  	*s = next_sym - s;
  	*(++next_sym) = '\0';
@@ -71,7 +71,7 @@
  	return intern(s);
  }
  
-@@ -318,8 +292,8 @@
+@@ -316,8 +291,8 @@
  	if (*CAR(x) == FORWARD) // No need to copy values that have already been copied
  		return cdr(x);
  	// Deep copy the value normally
@@ -82,7 +82,7 @@
  	void *res = (void **)cons(a, d) - diff;
  	// Leave a forward pointer to indicate that the cell has already been copied
  	*CAR(x) = FORWARD;
-@@ -418,26 +392,6 @@
+@@ -416,26 +391,6 @@
  	if (car(x) == sym_quote) // quote
  		return cadr(x);
  
@@ -109,3 +109,14 @@
  	// Handle primitive functions
  	if (car(x) == sym_car) // car
  		return car(eval(cadr(x), env));
+@@ -467,9 +422,7 @@
+ 	// Trampoline
+ 	void *ret;
+ 	while ((ret = eval_base(x, env)) == CONTINUE) {
+-		if (car(x) == sym_eval) // eval -> continue from expression given by evaluated argument
+-			x = eval(cadr(x), env);
+-		else if (car(x) == sym_if) // if -> continue from expression switched by condition
++		if (car(x) == sym_if) // if -> continue from expression switched by condition
+ 			x = eval(cadr(x), env) ? caddr(x) : cadddr(x);
+ 		else // must be a function application -> continue from apply (lambda body / fexpr result)
+ 			x = apply(eval(car(x), env), cdr(x), &env);
