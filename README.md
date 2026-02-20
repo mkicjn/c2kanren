@@ -1,5 +1,5 @@
 # c2kanren
-**A very small Lisp interpreter powerful enough to host μKanren**
+**A very small hackable Lisp interpreter in C, with its own port of μKanren**
 
 This project was inspired by a number of sources, and it does what it says on the tin:
 build from an imperative language (C), to a functional language (Lisp), to a logic programming language (μKanren).
@@ -42,7 +42,7 @@ In a nutshell, it's as if you take a stripped-down Scheme, and changed the names
 Here's a more intensive breakdown of the language from the programmer's perspective:
 * Lisp-1 namespacing (single namespace for both variables and functions)
 * Simple `define`s only *by default* (no `(define (f args) body)`; use `(define f (lambda args body))`)
-  * Ergonomic definitions (e.g., `(defun/defmacro (f args) body)` are supported by macro definitions in `rc.lisp`.
+  * HOWEVER: Ergonomic definitions (e.g., `(defun/defmacro (f args) body)` are enabled by macro definitions in `rc.lisp`.
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no built-in backquote-unquote (this is also supported by macros in `rc.lisp`)
 * The semantics of nil are somewhere between CL and Scheme:
@@ -53,34 +53,33 @@ Here's a more intensive breakdown of the language from the programmer's perspect
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
 * `let` and `let*` work exactly the same as in either CL or Scheme
 * Variadic `and`/`or` as in either CL or Scheme (note: instead of CL's `mod` or Scheme's `modulo`, use the C-like `%`)
-* For type-checking, the `type` primitive returns a value (one of `symbol`, `cons`, `lambda`, or `number`) which can be compared with `eq`
 * Macros are implemented via a hook in the form of the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
   * The version of `expand` provided by `rc.lisp` works by applying rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
 
 ## The Kanren
 
 The uKanren port is patterned mostly after a talk by its creators, and also using the original paper as a reference occasionally.
-The original work that followed that talk a little more closely was in `ukanren-old.lisp` (see branch `old-interpreters`), and has tons of code commented out where things were being tested and updated.
+The original work that followed that talk a little more closely was in `ukanren-old.lisp` (see the `old-interpreters` branch), and has tons of code commented out where things were being tested and updated.
 I figured it might be useful to keep that old body of code around as a reference, but the two versions present now are probably much better to read and use.
 The code in `ukanren-annotated.lisp` is a cleaned up and _very, very heavily_ commented version of `ukanren-old.lisp` originally produced to help decipher some of the complexity.
 
-Meanwhile, the code in `ukanren.lisp` is the latest iteration, which uses no numeric types in its implementation.
-That means no more numbers as variables, and no more threading a counter through with all the substitutions.
+Meanwhile, the code in `ukanren.lisp` is the latest iteration, which uses no numeric types at all in its implementation (except at the very end, just to limit the number of results from `run`).
+That means no numbers as variables, and no threading a counter through with all the substitutions.
 Instead, variables are formed by cons pairs to ensure uniqueness, and as such, only the pointer comparison operator `eq` is used to compare them.
 
 This was originally so that the interpreter can be pared down and have math support removed, if desired.
-(This is very easy to do - in fact, `type` can be removed as well, and `ukanren.lisp` will essentially still work - see `c2kanren-min.diff`.)
+(This is very easy to do, and `ukanren.lisp` will essentially still work - try applying `c2kanren-min.diff`.)
 
-Personally, though, I think it just makes the implementation easier to understand, as it's another moving part removed - one which was initially rather confusing to me, as well.
+Personally, I think it also makes the implementation easier to understand, since it's another moving part removed - one which was initially rather confusing to me, as well.
 It also provides some additional flexibility, since numbers are no longer assumed to be variables, and variables can carry arbitrary data with them in their `cdr`.
 Logic variables are identified by being a list and having an underscore symbol `_` at the head, but the rest of the list is never inspected.
-The usefulness of this is debatable, although it is currently being used to identify variables from `run`(`*`) for when they appear in a reified result.
+The usefulness of this is probably debatable, but it is at least used to identify variables from `run`(`*`) for when they appear in a reified result.
 
 Summary of current features:
 * The usual `==`/`conj`/`disj`/`fresh`/`conde`
   * `conj` and `disj` are variadic (like `conj+` and `disj+` in the paper)
   * `fresh` can take multiple arguments and multiple body expressions (adds a `conj`)
 * Support for `run` and `run*`, both with reification
-* Inverse-eta-delayed relations with `relation` (works like `lambda`)
-* Classic `appendo` example included
+* Inverse-η-delayed relations with `relation` (works like `lambda`)
+* Classic `appendo` example included (demonstrated with `./ukanren_demo.sh`)
 * No arithmetic used by the implementation core
