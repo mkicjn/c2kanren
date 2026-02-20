@@ -87,10 +87,8 @@
 	 ((λ _) 'stuck)
 	 (((λ , t12) (λ , t22))
 	  (shift -1 (sub 0 (shift 1 (` λ , t22)) t12)))
-	 (((λ , t12) , t2)
-	  (` (λ , t12) , (-λ-> t2)))
-	 ((, t1 , t2)
-	  (` , (-λ-> t1) , t2))
+	 (((λ , t12) , t2) (` (λ , t12) , (-λ-> t2)))
+	 ((, t1 , t2) (` , (-λ-> t1) , t2))
 	 (_ 'stuck)))
 
 (define -λ->* (make->* -λ->))
@@ -152,17 +150,17 @@
 (levels '(λ ((λ (1 0)) 0)))
 (indices '(λ ((λ (0 1)) 0)))
 
-(defun (test-I←→L x)
+(defun (test-I=L x)
   (let* ((x` (levels x))
 	 (x`` (indices x`)))
     (list (equal x x``) x '\
 	  '\  x`)))
 
-(test-I←→L '(λ (λ 0)))
-(test-I←→L '(λ (λ (1 (1 0)))))
-(test-I←→L '(λ (λ (λ (λ ((3 1) ((2 0) 1)))))))
-(test-I←→L '(λ ((λ (1 (λ ((1 1) 0)))) (λ (1 (λ ((1 1) 0)))))))
-(test-I←→L '((λ (λ 0)) (λ 0)))
+(test-I=L '(λ (λ 0)))
+(test-I=L '(λ (λ (1 (1 0)))))
+(test-I=L '(λ (λ (λ (λ ((3 1) ((2 0) 1)))))))
+(test-I=L '(λ ((λ (1 (λ ((1 1) 0)))) (λ (1 (λ ((1 1) 0)))))))
+(test-I=L '((λ (λ 0)) (λ 0)))
 
 ; Evaluator
 '---
@@ -199,14 +197,14 @@
 	 ((λ , t12) (λ-norm t12))
 	 ((, t1 , t2) (and (λ-norm t1) (λ-norm t2)))))
 
-(defun (λ↓↓ t0) ; (big-step semantics)
+(defun (λ⇓ t0) ; (big-step semantics)
   (match t0
 	 (_ t0 when (λ-norm t0))
-	 ((, t1 , t2) (λ↓↓ (` , t1 , (λ↓↓ t2))) when (not (λ-norm t2)))
-	 ((, t1 , t2) (λ↓↓ (` , (λ↓↓ t1) , t2)) when (not (λ-norm t1)))
-	 ((λ , t12) (` λ , (λ↓↓ t12)) when (not (λ-norm t12)))
+	 ((, t1 , t2) (λ⇓ (` , t1 , (λ⇓ t2))) when (not (λ-norm t2)))
+	 ((, t1 , t2) (λ⇓ (` , (λ⇓ t1) , t2)) when (not (λ-norm t1)))
+	 ((λ , t12) (` λ , (λ⇓ t12)) when (not (λ-norm t12)))
 	 ; ^^^ Previous 3 can all be rearranged to change eval order
-	 (((λ , t12) , t2) (λ↓↓ (shift -1 (sub 0 (shift 1 t2) t12))))
+	 (((λ , t12) , t2) (λ⇓ (shift -1 (sub 0 (shift 1 t2) t12))))
 	 (_ (` wrong , t0))))
 
 (λ-norm (removenames '(λ x x)))
@@ -214,17 +212,17 @@
 (λ-norm (removenames '(λ x (λ y (x (λ z (z z)))))))
 (not (λ-norm (removenames '(λ x (λ y (x ((λ z (z z)) y)))))))
 
-(equal (λ↓↓ (removenames '(λ x (λ y (x ((λ z (z z)) y))))))
+(equal (λ⇓ (removenames '(λ x (λ y (x ((λ z (z z)) y))))))
        (removenames '(λ x (λ y (x (y y))))))
 
 ; 2 + 2 = 4
-(equal (λ↓↓ (removenames (` (, cplus , c2) , c2)))
+(equal (λ⇓ (removenames (` (, cplus , c2) , c2)))
        (removenames c4))
 
 (defun (show t0)
   (let ((t0` (removenames t0)))
     (list t0` '\
-	  '→ (λ↓↓ t0`))))
+	  '→ (λ⇓ t0`))))
 
 (show (` (, cplus , c2) , c2)) ; 2 + 2 = 4
 (show (` (, cpow  , c2) , c3)) ; 2³ = 8
@@ -257,7 +255,7 @@
 (↓ (removenames (` (, cplus , c2) , c2)))
 (↓ (removenames (` (, cplus , c3) , c1)))
 
-(eq (λ↓↓ (removenames (` (, cmult , c2) , c3)))
+(eq (λ⇓ (removenames (` (, cmult , c2) , c3)))
     (↓ (removenames (` (, cmult , c2) , c3))))
 
 
@@ -281,3 +279,59 @@
 (eq 'Nat (NB-type '(if (iszero (succ (pred zero))) then zero else (succ zero))))
 (eq 'Bool (NB-type '(iszero (if (iszero (succ (pred zero))) then zero else (succ zero)))))
 (eq '() (NB-type '(pred (iszero (if (iszero (succ (pred zero))) then zero else (succ zero))))))
+
+
+;; Chapter 9 - simply typed lambda calculus
+
+(define C0 '(λ s : T (λ z : T z)))
+(define C1 '(λ s : T (λ z : T (s z))))
+(define C2 '(λ s : T (λ z : T (s (s z)))))
+(define C3 '(λ s : T (λ z : T (s (s (s z))))))
+(define C4 '(λ s : T (λ z : T (s (s (s (s z)))))))
+(define Scc '(λ n : T (λ s : T (λ z : T (s ((n s) z))))))
+(define Cplus '(λ m : T (λ n : T (λ s : T (λ z : T ((m s) ((n s) z)))))))
+(define Cmult '(λ m : T (λ n : T (λ s : T (m (n s))))))
+(define Cpow  '(λ m : T (λ n : T (n m))))
+
+(defun (Removenames t0 (Γ ()))
+  (match t0
+	 ((λ , x : , T , t1) (` λ : , T , (Removenames t1 (cons x Γ))))
+	 ((, t1 , t2) (` , (Removenames t1 Γ) , (Removenames t2 Γ)))
+	 (_ (position t0 Γ) when (atom t0))))
+
+(defun (Shift d t0 (c 0))
+  (match t0
+	 ((λ : , T , t1) (` λ : , T , (Shift d t1 (+ c 1))))
+	 ((, t1 , t2) (` , (Shift d t1 c) , (Shift d t2 c)))
+	 (_ t0 when (> c t0))
+	 (_ (+ t0 d))))
+
+(defun (Sub j s k)
+  (match k
+	 ((λ : , T , t1) (` λ : , T , (Sub (+ j 1) (Shift 1 s) t1)))
+	 ((, t1 , t2) (` , (Sub j s t1) , (Sub j s t2)))
+	 (_ s when (eq j k))
+	 (_ k)))
+
+; TODO: Think of better names for the above definitions (or maybe just redefine everything)
+; TODO: Actually add in the typed features now that the explicit type annotations are present
+; TODO: Implement type analyses for the resulting language
+
+(defun (-λ→-> t0)
+  (match t0
+	 ((λ : _ _) 'stuck)
+	 (((λ : _ , t12) (λ : , Tx , t22))
+	  (Shift -1 (Sub 0 (Shift 1 (` λ : , Tx , t22)) t12)))
+	 (((λ : , T2 , t12) , t2) (` (λ : , T2 , t12) , (-λ→-> t2)))
+	 ((, t1 , t2) (` , (-λ→-> t1) , t2))
+	 (_ 'stuck)))
+
+(equal (times 0 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
+       '(((λ : T (λ : T (λ : T (λ : T ((3 1) ((2 1) 0)))))) (λ : T (λ : T (1 (1 0))))) (λ : T (λ : T (1 0)))))
+(equal (times 1 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
+       '((λ : T (λ : T (λ : T (((λ : T (λ : T (1 (1 0)))) 1) ((2 1) 0))))) (λ : T (λ : T (1 0)))))
+(equal (times 2 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
+       '(λ : T (λ : T (((λ : T (λ : T (1 (1 0)))) 1) (((λ : T (λ : T (1 0))) 1) 0)))))
+(equal (times 3 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
+       'stuck)
+
