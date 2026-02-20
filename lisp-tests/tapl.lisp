@@ -117,7 +117,7 @@
 	 ((λ , t1) (let ((x (gensym)))
 			(` λ , x , (restorenames t1 (cons x Γ)))))
 	 ((, t1 , t2) (` , (restorenames t1 Γ) , (restorenames t2 Γ)))
-	 (_ (nth t0 Γ) when (eq (type t0) 'number))))
+	 (_ (nth t0 Γ) when (+ 0 t0))))
 
 (restorenames '(λ (λ 0)))
 (restorenames '(λ (λ (1 (1 0)))))

@@ -30,7 +30,7 @@
 
 ; Logic variables are just numbers
 (defun (var x) x)
-(defun (var? x) (eq (type x) 'number))
+(defun (var? x) (+ x 0)) ; Adding 0 serves as a test for numbers - e.g., (+ 0 'x) is ()
 (defun (var= x y) (= x y))
 
 (defun (var-assoc a as)
@@ -127,7 +127,10 @@
     (bind g2 (g1 s/c))))
 
 ; A "promise" is a lambda function that should be called to get more s/c pairs
-(define promise? (lambda (x) (eq (type x) 'lambda)))
+(defun (promise? x)
+  (cond ((atom x) ())
+	((atom (car x)) ())
+	(t (eq 'lambda (caar x)))))
 
 ; TODO: Explain streams in more detail
 

@@ -48,7 +48,6 @@
 	X("\004eval", sym_eval) \
 	X("\006expand", sym_expand) \
 	X("\006gensym", sym_gensym) \
-	X("\004type", sym_type) \
 	X("\006symbol", sym_symbol) \
 	X("\006number", sym_number) \
 	X("\001+", sym_add) \
@@ -57,7 +56,7 @@
 	X("\001/", sym_div) \
 	X("\001%", sym_mod) \
 	X("\001>", sym_grt) \
-	X("\001=", sym_equ) \
+	X("\001=", sym_equ)
 
 // Declare character pointer variables for each built-in symbol
 #define DECLARE_SYMVAR(sym, id) char *id;
@@ -429,24 +428,15 @@ void *eval_base(void *x, void *env)
 			return conv(UNWRAP(a) op UNWRAP(b)); \
 		return err; \
 	}
-	BINOP(sym_add,   WRAP,  +, ERROR)
-	BINOP(sym_sub,   WRAP,  -, ERROR)
-	BINOP(sym_mul,   WRAP,  *, ERROR)
-	BINOP(sym_div,   WRAP,  /, ERROR)
-	BINOP(sym_mod,   WRAP,  %, ERROR)
-	BINOP(sym_grt, TOBOOL,  >, ERROR)
-	BINOP(sym_equ, TOBOOL, ==, ERROR)
+	BINOP(sym_add,   WRAP,  +, NULL)
+	BINOP(sym_sub,   WRAP,  -, NULL)
+	BINOP(sym_mul,   WRAP,  *, NULL)
+	BINOP(sym_div,   WRAP,  /, NULL)
+	BINOP(sym_mod,   WRAP,  %, NULL)
+	BINOP(sym_grt, TOBOOL,  >, NULL)
+	BINOP(sym_equ, TOBOOL, ==, NULL)
 	BINOP(sym_eq,  TOBOOL, ==, TOBOOL(a == b))
 	// ^ Override `eq` to handle numbers
-
-	// Runtime type inspection
-	if (car(x) == sym_type) {
-		void *a = eval(cadr(x), env);
-		if (atom(a))
-			return !a || IN(a, syms) ? sym_symbol : sym_number;
-		else
-			return caar(a) == sym_lambda ? sym_lambda : sym_cons;
-	}
 
 	// Handle primitive functions
 	if (car(x) == sym_car) // car

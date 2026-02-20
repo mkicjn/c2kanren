@@ -1,11 +1,10 @@
---- c2klisp.c	2026-02-15 20:43:18.252712434 -0600
-+++ c2klisp-min.c	2026-02-15 20:36:56.101413747 -0600
-@@ -47,17 +47,7 @@
+--- c2klisp.c	2026-02-19 20:40:19.091139833 -0600
++++ c2klisp-min.c	2026-02-19 20:39:25.040775478 -0600
+@@ -47,16 +47,7 @@
  	X("\006define", sym_define) \
  	X("\004eval", sym_eval) \
  	X("\006expand", sym_expand) \
 -	X("\006gensym", sym_gensym) \
--	X("\004type", sym_type) \
 -	X("\006symbol", sym_symbol) \
 -	X("\006number", sym_number) \
 -	X("\001+", sym_add) \
@@ -14,12 +13,12 @@
 -	X("\001/", sym_div) \
 -	X("\001%", sym_mod) \
 -	X("\001>", sym_grt) \
--	X("\001=", sym_equ) \
+-	X("\001=", sym_equ)
 +	X("\006gensym", sym_gensym)
  
  // Declare character pointer variables for each built-in symbol
  #define DECLARE_SYMVAR(sym, id) char *id;
-@@ -67,7 +57,6 @@
+@@ -66,7 +57,6 @@
  #define ERROR     ((void *)1)  // used as a generic error value
  #define FORWARD   ((void *)2)  // used for signaling that a cell has already been copied by garbage collection
  #define CONTINUE  ((void *)3)  // used for signaling that an expression should be tail call optimized
@@ -27,7 +26,7 @@
  
  
  // **************** Memory regions and region-based type inference ****************
-@@ -104,7 +93,7 @@
+@@ -103,7 +93,7 @@
  
  static inline bool atom(void *l)
  {
@@ -36,7 +35,7 @@
  }
  
  static inline void *car(void *l)
-@@ -133,23 +122,12 @@
+@@ -132,23 +122,12 @@
  #define cadr(x) car(cdr(x))
  #define cdar(x) cdr(car(x))
  
@@ -60,7 +59,7 @@
  		// For lists, first print the head
  		printf("(");
  		print(car(x));
-@@ -270,11 +248,6 @@
+@@ -269,11 +248,6 @@
  		return ERROR;
  	*s = next_sym - s;
  	*(++next_sym) = '\0';
@@ -72,7 +71,7 @@
  	return intern(s);
  }
  
-@@ -319,8 +292,8 @@
+@@ -318,8 +292,8 @@
  	if (*CAR(x) == FORWARD) // No need to copy values that have already been copied
  		return cdr(x);
  	// Deep copy the value normally
@@ -83,7 +82,7 @@
  	void *res = (void **)cons(a, d) - diff;
  	// Leave a forward pointer to indicate that the cell has already been copied
  	*CAR(x) = FORWARD;
-@@ -419,35 +392,6 @@
+@@ -418,26 +392,6 @@
  	if (car(x) == sym_quote) // quote
  		return cadr(x);
  
@@ -97,24 +96,15 @@
 -			return conv(UNWRAP(a) op UNWRAP(b)); \
 -		return err; \
 -	}
--	BINOP(sym_add,   WRAP,  +, ERROR)
--	BINOP(sym_sub,   WRAP,  -, ERROR)
--	BINOP(sym_mul,   WRAP,  *, ERROR)
--	BINOP(sym_div,   WRAP,  /, ERROR)
--	BINOP(sym_mod,   WRAP,  %, ERROR)
--	BINOP(sym_grt, TOBOOL,  >, ERROR)
--	BINOP(sym_equ, TOBOOL, ==, ERROR)
+-	BINOP(sym_add,   WRAP,  +, NULL)
+-	BINOP(sym_sub,   WRAP,  -, NULL)
+-	BINOP(sym_mul,   WRAP,  *, NULL)
+-	BINOP(sym_div,   WRAP,  /, NULL)
+-	BINOP(sym_mod,   WRAP,  %, NULL)
+-	BINOP(sym_grt, TOBOOL,  >, NULL)
+-	BINOP(sym_equ, TOBOOL, ==, NULL)
 -	BINOP(sym_eq,  TOBOOL, ==, TOBOOL(a == b))
 -	// ^ Override `eq` to handle numbers
--
--	// Runtime type inspection
--	if (car(x) == sym_type) {
--		void *a = eval(cadr(x), env);
--		if (atom(a))
--			return !a || IN(a, syms) ? sym_symbol : sym_number;
--		else
--			return caar(a) == sym_lambda ? sym_lambda : sym_cons;
--	}
 -
  	// Handle primitive functions
  	if (car(x) == sym_car) // car
