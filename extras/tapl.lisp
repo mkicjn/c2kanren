@@ -45,7 +45,7 @@
 	 ((pred (succ , nv)) nv when (is-nv nv))
 	 ((pred , t1) (` pred , (-NB-> t1)))
 	 ((iszero zero) 'true)
-	 ((iszero (succ nv)) 'false when (is-nv nv))
+	 ((iszero (succ , nv)) 'false when (is-nv nv))
 	 ((iszero , t1) (` iszero , (-NB-> t1)))
 	 (_ 'stuck)))
 
@@ -292,7 +292,94 @@
 
 
 ;; Chapter 9 - simply typed lambda calculus
+'---
 
+(defun (λ→-erase t0)
+  (match t0
+	 ((λ , x : _ , t1) (` λ , x , (λ→-erase t1)))
+	 ((, t1 , t2) (` , (λ→-erase t1) , (λ→-erase t2)))
+	 (_ t0)))
+
+; TODO: Implement type analyses for the resulting language
+
+(defun (removenames t0 (Γ ()))
+  (match t0
+	 ((λ , x , t1) (` λ , (removenames t1 (cons x Γ))))
+	 ((, t1 , t2) (` , (removenames t1 Γ) , (removenames t2 Γ)))
+	 (_ (map (lambda (tn) (removenames tn Γ)) t0) when (not (atom t0)))
+	 (_ (let ((pos (position t0 Γ)))
+	      (if pos pos t0)))))
+
+(defun (shift d t0 (c 0))
+  (match t0
+	 ((λ , t1) (` λ , (shift d t1 (+ c 1))))
+	 ((, t1 , t2) (` , (shift d t1 c) , (shift d t2 c)))
+	 (_ (map (lambda (tn) (shift d tn c)) t0) when (not (atom t0)))
+	 (_ t0 when (> c t0))
+	 (_ (+ t0 d) when (+ 0 t0))
+	 (_ t0)))
+
+(defun (sub j s t0)
+  (match t0
+	 ((λ , t1) (` λ , (sub (+ j 1) (shift 1 s) t1)))
+	 ((, t1 , t2) (` , (sub j s t1) , (sub j s t2)))
+	 (_ (map (lambda (tn) (sub j s tn)) t0) when (not (atom t0)))
+	 (_ s when (eq j t0))
+	 (_ t0)))
+
+(defun (-λ→-> t0) ; (small-step call by value semantics)
+  ; Use removenames and λ→-erase on t0
+  (match t0
+	 ((if true then , t2 else _) t2)
+	 ((if false then _ else , t3) t3)
+	 ((if , t1 then , t2 else , t3) (` if , (-λ→-> t1) then , t2 else , t3))
+	 ((succ , t1) (` succ , (-λ→-> t1)) when (not (is-nv t1)))
+	 ((succ _) 'stuck)
+	 ((pred zero) 'zero)
+	 ((pred (succ , nv)) nv when (is-nv nv))
+	 ((pred , t1) (` pred , (-λ→-> t1)))
+	 ((iszero zero) 'true)
+	 ((iszero (succ , nv)) 'false when (is-nv nv))
+	 ((iszero , t1) (` iszero , (-λ→-> t1)))
+	 ((λ _) 'stuck)
+	 (((λ , t1) , t2)
+	  (let ((t2` (-λ→-> t2)))
+	    (if (eq t2` 'stuck)
+	      (shift -1 (sub 0 (shift 1 t2) t1))
+	      (` (λ , t1) , t2`))))
+;	  (if (is-λ t2)
+;	    (shift -1 (sub 0 (shift 1 t2) t1))
+;	    (` (λ , t1) , (-λ→-> t2))))
+	 ((, t1 , t2) (` , (-λ→-> t1) , t2))
+	 (_ 'stuck)))
+
+(defun (λ→-type t0 (Γ ()))
+  (match t0
+	 (false 'Bool)
+	 (true  'Bool)
+	 (zero  'Nat)
+	 ((succ , n) 'Nat when (eq (λ→-type n Γ) 'Nat))
+	 ((pred , n) 'Nat when (eq (λ→-type n Γ) 'Nat))
+	 ((iszero , n) 'Bool when (eq (λ→-type n Γ) 'Nat))
+	 ((if , t1 then , t2 else , t3)
+	  (λ→-type t2 Γ)
+	  ; ^ TODO: Redundant calculation from guard, but unclear how to avoid
+	  when (and (eq (λ→-type t1 Γ) 'Bool)
+		    (equal (λ→-type t2 Γ) (λ→-type t3 Γ))))
+	 ((λ , x : , T1 , t1) ; T-Abs
+	  (let ((T2 (λ→-type t1 (cons (cons x T1) Γ))))
+	    (if T2 (` , T1 -> , T2))))
+	 ((, t1 , t2) ; T-App
+	  (let ((T1 (λ→-type t1 Γ))
+		(T2 (λ→-type t2 Γ)))
+	    (match T1
+		   ((, T11 -> , T12) T12 when (equal T2 T11)))))
+	 (_ ; T-Var
+	   (cdr (assoc t0 Γ)) when (atom t0))))
+
+; (tests)
+
+; These are for testing purposes and won't typecheck
 (define C0 '(λ s : T (λ z : T z)))
 (define C1 '(λ s : T (λ z : T (s z))))
 (define C2 '(λ s : T (λ z : T (s (s z)))))
@@ -303,45 +390,46 @@
 (define Cmult '(λ m : T (λ n : T (λ s : T (m (n s))))))
 (define Cpow  '(λ m : T (λ n : T (n m))))
 
-(defun (Removenames t0 (Γ ()))
-  (match t0
-	 ((λ , x : , T , t1) (` λ : , T , (Removenames t1 (cons x Γ))))
-	 ((, t1 , t2) (` , (Removenames t1 Γ) , (Removenames t2 Γ)))
-	 (_ (position t0 Γ) when (atom t0))))
+(equal (λ→-erase Cplus) cplus)
 
-(defun (Shift d t0 (c 0))
-  (match t0
-	 ((λ : , T , t1) (` λ : , T , (Shift d t1 (+ c 1))))
-	 ((, t1 , t2) (` , (Shift d t1 c) , (Shift d t2 c)))
-	 (_ t0 when (> c t0))
-	 (_ (+ t0 d))))
-
-(defun (Sub j s k)
-  (match k
-	 ((λ : , T , t1) (` λ : , T , (Sub (+ j 1) (Shift 1 s) t1)))
-	 ((, t1 , t2) (` , (Sub j s t1) , (Sub j s t2)))
-	 (_ s when (eq j k))
-	 (_ k)))
-
-; TODO: Think of better names for the above definitions (or maybe just redefine everything)
-; TODO: Actually add in the typed features now that the explicit type annotations are present
-; TODO: Implement type analyses for the resulting language
-
-(defun (-λ→-> t0)
-  (match t0
-	 ((λ : _ _) 'stuck)
-	 (((λ : _ , t12) (λ : , Tx , t22))
-	  (Shift -1 (Sub 0 (Shift 1 (` λ : , Tx , t22)) t12)))
-	 (((λ : , T2 , t12) , t2) (` (λ : , T2 , t12) , (-λ→-> t2)))
-	 ((, t1 , t2) (` , (-λ→-> t1) , t2))
-	 (_ 'stuck)))
-
-(equal (times 0 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
-       '(((λ : T (λ : T (λ : T (λ : T ((3 1) ((2 1) 0)))))) (λ : T (λ : T (1 (1 0))))) (λ : T (λ : T (1 0)))))
-(equal (times 1 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
-       '((λ : T (λ : T (λ : T (((λ : T (λ : T (1 (1 0)))) 1) ((2 1) 0))))) (λ : T (λ : T (1 0)))))
-(equal (times 2 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
-       '(λ : T (λ : T (((λ : T (λ : T (1 (1 0)))) 1) (((λ : T (λ : T (1 0))) 1) 0)))))
-(equal (times 3 -λ→-> (Removenames (` (, Cplus , C2) , C1)))
+(equal (times 0 -λ→-> (removenames (λ→-erase (` (, Cplus , C2) , C1))))
+       '(((λ (λ (λ (λ ((3 1) ((2 1) 0)))))) (λ (λ (1 (1 0))))) (λ (λ (1 0)))))
+(equal (times 1 -λ→-> (removenames (λ→-erase (` (, Cplus , C2) , C1))))
+       '((λ (λ (λ (((λ (λ (1 (1 0)))) 1) ((2 1) 0))))) (λ (λ (1 0)))))
+(equal (times 2 -λ→-> (removenames (λ→-erase (` (, Cplus , C2) , C1))))
+       '(λ (λ (((λ (λ (1 (1 0)))) 1) (((λ (λ (1 0))) 1) 0)))))
+(equal (times 3 -λ→-> (removenames (λ→-erase (` (, Cplus , C2) , C1))))
        'stuck)
 
+
+(equal (times 0 -λ→-> (removenames '(if (iszero (pred (succ zero))) then false else true)))
+       '(if (iszero (pred (succ zero))) then false else true))
+(equal (times 1 -λ→-> (removenames '(if (iszero (pred (succ zero))) then false else true)))
+       '(if (iszero zero) then false else true))
+(equal (times 2 -λ→-> (removenames '(if (iszero (pred (succ zero))) then false else true)))
+       '(if true then false else true))
+(equal (times 3 -λ→-> (removenames '(if (iszero (pred (succ zero))) then false else true)))
+       'false)
+
+(eq 'Bool (λ→-type '(if (iszero (pred (succ zero))) then false else true)))
+(eq () (λ→-type '(if (iszero (pred (succ zero))) then false else zero))) ; Ill-typed
+(eq 'Nat (λ→-type '(if (iszero (pred (succ zero))) then (succ zero) else zero)))
+
+(equal '(Nat -> Bool) (λ→-type '(λ x : Nat (iszero x))))
+(equal '(Nat -> Nat) (λ→-type '(λ x : Nat (if (iszero x) then (succ zero) else zero))))
+(equal '((Nat -> Bool) -> (Nat -> Nat))
+       (λ→-type '(λ f : (Nat -> Bool) (λ x : Nat (if (f x) then (succ x) else (pred x))))))
+
+(let* ((t0 '(((λ f : (Nat -> Bool)
+		 (λ x : Nat (if (f x) then (succ x) else (pred x))))
+	      (λ y : Nat (iszero y)))
+	     (succ (succ zero))))
+       (t0` (removenames (λ→-erase t0))))
+  (list (λ→-type t0) '\
+	(times 0 -λ→-> t0`) '\
+	(times 1 -λ→-> t0`) '\
+	(times 2 -λ→-> t0`) '\
+	(times 3 -λ→-> t0`) '\
+	(times 4 -λ→-> t0`) '\
+	(times 5 -λ→-> t0`) '\
+	(times 6 -λ→-> t0`)))
