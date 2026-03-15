@@ -206,15 +206,15 @@
 (defun (matches data pattern)
   (cond ((eq pattern '_) t)
 	((atom pattern) (eq data pattern))
-	((atom    data) (eq data pattern))
+	((eq (car pattern) ',.) (not (if data (atom data))))
+	((atom data) (eq data pattern))
 	((eq (car pattern) ',) (matches (cdr data) (cddr pattern)))
-	((eq (car pattern) ',.) t)
 	(t (if (matches (car data) (car pattern))
 	       (matches (cdr data) (cdr pattern))
 	       ()))))
 
 (defun (pattern-holes pattern (acc ()))
-  (cond ((atom pattern)())
+  (cond ((atom pattern) ())
 	((eq (car pattern) ',)
 	 (cons
 	   (cons (cadr pattern) (cons 'a acc))
