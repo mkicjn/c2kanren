@@ -14,6 +14,8 @@
 	  (` lambda (, first) , (curried (` lambda , rest , body))))
 	 ((, op , a , b)
 	  (` , op , (curried a) , (curried b)) when (member op binops))
+	 ((if , t1 , t2 , t3)
+	  (` if , (curried t1) , (curried t2) , (curried t3)))
 	 ((, t1 ,. ts)
 	  (fold-left
 	    (lambda (xs x) (list xs (curried x)))
@@ -23,6 +25,7 @@
 '+++
 (curried '(a (b c d) (e f g h)))
 (curried '(lambda (x y z) (x y (x y z))))
+(curried '(if (a b c) (d e f) (cons h i)))
 
 (defun (add a)
   (lambda (b)
@@ -92,31 +95,56 @@
 (cps-term (curried '(a b c)))
 '---
 
-; (Own approach to hybrid translation - might be flawed)
+; (Own approach to hybrid translation - might be very flawed/buggy)
 
-(defun (mkk k)
-  (if (atom k)
-    (lambda (x) (list k x))
-    k))
+(defun (proc? p)
+  (cond ((atom p) ())
+	((atom (car p)) ())
+	((eq (caar p) 'lambda) t)))
+
+(defun (mk-k k)
+  (if (proc? k) k
+    (lambda (x) (list k x))))
+
+(defun (gen-k k)
+  (if (atom k) k
+    (let ((s (gensym)))
+      (` lambda (, s) , (k s)))))
 
 (defun (cps-term term (k 'halt))
   (match term
 	 ((lambda (, arg) , body)
 	  (let ((k' (gensym)))
-	    ((mkk k) (` lambda (, arg , k')
+	    ((mk-k k) (` lambda (, arg , k')
 		   , (cps-term body k')))))
 
-	 (_ ((mkk k) term) when (atom term))
+	 (_ ((mk-k k) term) when (atom term))
 
 	 ((, t1 , t2)
-	  (let ((k' (if (atom k) k
-		      (let ((rv (gensym)))
-			(` lambda (, rv) , (k rv))))))
-	    (cps-term t1
-	      (lambda (fs)
-		(cps-term t2
-		  (lambda (as)
-		    (` , fs , as , k')))))))
+	  (let ((k' (gen-k k)))
+	    (cps-term t1 (lambda (s1)
+		(cps-term t2 (lambda (s2)
+		    (` , s1 , s2 , k')))))))
+
+	 ; ???
+	 ((, op , t1 , t2)
+	  (let ((k' (gen-k k)))
+	    (cps-term t1 (lambda (s1)
+	        (cps-term t2 (lambda (s2)
+		    (` , op , s1 , s2 , k'))))))
+	  when (member op binops))
+
+	 ((if , t1 , t2 , t3)
+	  (let ((k' (gen-k k))
+		(ks (gensym)))
+	    (cps-term t1 (lambda (s1)
+		(` (lambda (, ks)
+		     (if , s1
+		       , (cps-term t2 ks)
+		       , (cps-term t3 ks)))
+		   , k')))))
+
+	 (_ (list 'stuck term))
 	 ))
 
 '+++
@@ -135,4 +163,8 @@
 (eval (cps-term (curried '(add (add 1 2) (add 3 4)))))
       (cps-term (curried '(add (add 1 2) (add 3 (add 4 5)))))
 (eval (cps-term (curried '(add (add 1 2) (add 3 (add 4 5))))))
+
+(cps-term (curried '(eq (a b) c)))
+(cps-term (curried '(if (eq (a b) (c d)) d e)))
+(cps-term (curried '(func (if (eq (a b) (c d)) (d e) f))))
 '---
