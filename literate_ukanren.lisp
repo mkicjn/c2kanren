@@ -17,8 +17,9 @@
 
 ; Also, some macros for enabling or disabling tests
 
-(defmacro (test f r) (` equal , f (quote , r))) ; Enable tests
-;(defmacro (test f r) '(define test-off t)) ; Disable tests
+;(defmacro (test f r) '(define tests-off t)) ; Disable tests
+;(defmacro (test f r) f) ; Enable tests (without checking)
+(defmacro (test f r) (` equal , f (quote , r))) ; Enable tests (with checking)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -120,7 +121,6 @@
 ; Now for a slight detour - what exactly is a logic variable?
 
 ; Logic variables basically act like placeholders or "don't cares" in a Lisp expression.
-; We will want to be able to check if two lists match except for these.
 
 ; For lack of a better option, we'll let logic variables be a pair with '_' at the head.
 ; (The tail can hold any value at all.)
@@ -131,43 +131,46 @@
 ; We'll know that two variables are equal when their pointers are equal.
 (defun (var= x y) (eq x y))
 
-; Next, we need some way to do this variable-aware checking.
-; This is called "unification" and results in bindings for those variables on success.
+; We will want to be able to check if two lists can be made equal by assigning values to these.
+; This process is called "unification."
 
-; For example, (1 2 X 4) unified with (1 2 3 4) will bind X with 3.
+; For example, (1 2 (_ . X) 4) unified with (1 2 3 4) will assign variable (_ . X) to the value 3.
 
-; First, we need a function that can look up bound logic variables:
-(defun (walk v b)
-  ; If our variable is not a variable (anymore), we're done.
-  (if ((not (var? v)) v)
-    ; Otherwise, treat the bindings as an association list and do a lookup.
-    (let ((x (cdr (assoc v b))))
+; As variables are bound according to some environment, unification modifies its environment
+; until it either succeeds (returning a new environment) or fails (returning nothing).
+
+; First, we need a function to look up logic variables in an environment:
+(defun (walk v e)
+  ; If our variable is not a variable (anymore), then we're done.
+  (if (not (var? v)) v
+    ; Otherwise, treat the environment as an association list and do a lookup.
+    (let ((x (assoc v e)))
       ; If we get nothing, give up and return the variable itself.
-      ; Otherwise, keep looking. (This allows us to have chains of variables.)
-      (if (not x) v (walk x b)))))
+      ; Otherwise, keep looking, since assignments may be chained.
+      (if (not x) v (walk (cdr x) e)))))
 
-; TODO: Explain and add the "occurs" check.
+; TODO: Explain and add the "occurs check."
 
-; Now we can write a function to check that two variables/expressions can be unified:
-(defun (unify x y b)
+; Now we can write a function to perform unification:
+(defun (unify x y e)
   ; First, try to get actual values for both arguments.
-  (let ((x (walk x b))
-	(y (walk y b))) ; < TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
+  (let ((x (walk x e))
+	(y (walk y e))) ; < TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
     (cond
       ; If the two are definitionally equal (via pointer comparison or numeric value), we can stop.
-      ((eq x y) b)
+      ((eq x y) e)
       ; If one or the other is a logic variable, we can simply bind it to the other.
-      ((var? x) (cons (cons x y) b))
-      ((var? y) (cons (cons y x) b))
+      ((var? x) (cons (cons x y) e))
+      ((var? y) (cons (cons y x) e))
       ; Otherwise, if either one is an atom, the two cannot possibly have the same value.
       ; (If they did, we should have returned true already.)
-      ((atom x) 'fail) ; < TODO: Is there a cleaner way to distinguish empty bindings from failure?
+      ((atom x) 'fail) ; < TODO: Is there a cleaner way to distinguish empty environments from failure?
       ((atom y) 'fail)
-      ; Lastly, we have the hard case where both arguments are lists.
-      ; In this case, try to unify both the head and tail.
-      (t (let ((b (unify (car x) (car y) b)))
-	   (if (eq b 'fail) 'fail
-	     (unify (cdr x) (cdr y) b)))))))
+      ; Lastly, we have the harder case where both arguments are lists.
+      ; In this case, we try to unify the head, then the tail.
+      (t (let ((e (unify (car x) (car y) e)))
+	   (if (eq e 'fail) 'fail
+	     (unify (cdr x) (cdr y) e)))))))
 
 (test (let ((X (var 'X))) (unify (` 1 2 , X 4) (` 1 2 3 4) ()))
       (((_ . X) . 3)))
@@ -184,27 +187,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Part 3: Streams + Unification = Goals
 
-; Part 1 explains that the Kanren family of logic languages works by manipulating streams.
-; But, streams of what? Streams of unification bindings from Part 2!
+; Part 1 mentions that the Kanren family of logic languages works by manipulating streams.
+; But, streams of what? Streams of environments from Part 2, of course!
 
-; Part 1 also noted that streams could be manipulated with "stream operators."
-; Two binary stream operators were demonstrated - `cat` and `alt`.
+; Part 1 also demonstrated two generalized operators for streams: `cat` and `alt`.
+; Part 3 introduces "goals," which are specialized operator for streams of environments.
+; A mini/μKanren program is just a combination of these!
 
-; Part 3 introduces the notion of a "goal," which is like a unary operator for streams of bindings.
-; Or, perhaps more precisely, it is a function that generates such an operator.
-
-; The most basic goal `==` augments a stream of bindings by the unification of its arguments:
+; The most fundamental goal constructor `==` augments a stream of environments by unifying its arguments:
 (defun (== x y)
   ; Return a unary stream operator that...
   (lambda (s)
-    ; ...advances its input stream...
+    ; ...extracts the head (e) and tail (bs) of its input stream...
     (let ((s` (advance-stream s)))
       (if s`
-	; ...and outputs a stream where its arguments have been unified.
-	(let ((b (car s`))
-	      (bs (lambda () ((== x y) (cdr s`)))))
-	  (let (b` (unify x y b))
-	    (if (eq b` 'fail) bs (cons b` bs))))))))
+	(let ((e (car s`)) (es (cdr s`)))
+	  ; ...tries to unify its arguments in each environment from the stream...
+	  (let ((e` (unify x y e))
+		(gen (lambda () ((== x y) es)))) ; (preparing a generator for the rest)
+	    ; ...and outputs the modified environment only when unification succeeds.
+	    (if (eq e` 'fail) gen (cons e` gen))))))))
 
 ; ^ TODO: Worth refactoring this?
 
@@ -222,6 +224,7 @@
 	       ((, X . 8))
 	       ))))
       ((((_ . Y) . 7) ((_ . X) . 6))))
+
 
 ; TODO: conj, disj, conde
 ; TODO: fresh, reify, run
