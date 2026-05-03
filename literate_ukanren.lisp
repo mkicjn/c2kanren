@@ -1,4 +1,3 @@
-
 ; This Lisp dialect has some quirks related to runtime type checking,
 ; so we start with some auxiliary definitions to this effect.
 
@@ -30,7 +29,7 @@
 ; What is a stream?
 (defun (streamp x)
   (or
-    ; We say a stream is basically a list...
+    ; A stream is basically either a list...
     (list? x)
     ; ...or a "generator" function.
     (function? x)))
@@ -61,10 +60,10 @@
     ((atom s) s)
     ; If a number greater than zero was given, count down from there.
     ((> n 0) (let ((s` (advance-stream s)))
-	       (cons (car s`) (take (- n 1) (cdr s`)))))
+	       (if s` (cons (car s`) (take (- n 1) (cdr s`))))))
     ; If nil was given, take as many as possible.
     ((not n) (let ((s` (advance-stream s)))
-	       (cons (car s`) (take () (cdr s`)))))))
+	       (if s` (cons (car s`) (take () (cdr s`))))))))
 
 (test (take 3 '(1 2 3 4 5 6 7))
       (1 2 3))
@@ -76,9 +75,9 @@
       (55 56 57 58 59 60 61 62 63 64 65))
 
 ; OK, but suppose we want to combine streams. How do we do this?
-; Let's try building a "higher-order" generator, a stream combinator.
+; Let's try building a "higher-order" generator, a stream operator.
 
-; Let's try to make a "concatenate" combinator that takes two streams and returns another:
+; Let's try to make a "concatenate" operator that takes two streams and returns another:
 (defun (cat s1 s2)
   ; Inside our new stream:
   (lambda ()
@@ -98,7 +97,7 @@
       (100 101 102 103 104 105 106 107 108 109))
 
 ; Hmm... but we might like to see some results from both streams.
-; Let's try a small modification to get a new "alternating" stream combinator:
+; Let's try a small modification to get a new "alternating" stream operator:
 
 (defun (alt s1 s2)
   ; Same as cat...
@@ -150,7 +149,7 @@
 ; TODO: Explain and add the "occurs" check.
 
 ; Now we can write a function to check that two variables/expressions can be unified:
-(defun (unify x y (b ()))
+(defun (unify x y b)
   ; First, try to get actual values for both arguments.
   (let ((x (walk x b))
 	(y (walk y b))) ; < TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
@@ -162,14 +161,67 @@
       ((var? y) (cons (cons y x) b))
       ; Otherwise, if either one is an atom, the two cannot possibly have the same value.
       ; (If they did, we should have returned true already.)
-      ((atom x) ())
-      ((atom y) ())
+      ((atom x) 'fail) ; < TODO: Is there a cleaner way to distinguish empty bindings from failure?
+      ((atom y) 'fail)
       ; Lastly, we have the hard case where both arguments are lists.
       ; In this case, try to unify both the head and tail.
-      (t (let ((b` (unify (car x) (car y) b)))
-	   (unify (cdr x) (cdr y) b`))))))
+      (t (let ((b (unify (car x) (car y) b)))
+	   (if (eq b 'fail) 'fail
+	     (unify (cdr x) (cdr y) b)))))))
 
-(let ((X (var 'X))) (unify (` 1 2 , X 4) (` 1 2 3 4) ()))
-(let ((X (var 'X))) (unify (` 1 , X , X 4) (` 1 3 3 4) ()))
-(let ((X (var 'X)) (Y (var 'Y))) (unify (` 1 , X , X 4) (` 1 3 3 , Y) ()))
-(let ((X (var 'X))) (unify (` 1 ,. X) (` 1 2 3 4) ()))
+(test (let ((X (var 'X))) (unify (` 1 2 , X 4) (` 1 2 3 4) ()))
+      (((_ . X) . 3)))
+(test (let ((X (var 'X))) (unify (` 1 , X , X 4) (` 1 3 3 4) ()))
+      (((_ . X) . 3)))
+(test (let ((X (var 'X)) (Y (var 'Y))) (unify (` 1 , X , X 4) (` 1 3 3 , Y) ()))
+      (((_ . Y) . 4) ((_ . X) . 3)))
+(test (let ((X (var 'X))) (unify (` 1 ,. X) (` 1 2 3 4) ()))
+      (((_ . X) 2 3 4)))
+(test (let ((X (var 'X))) (unify (` 1 ,. X) (` 1 2 3 4) (` (, X . 3))))
+      fail)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Part 3: Streams + Unification = Goals
+
+; Part 1 explains that the Kanren family of logic languages works by manipulating streams.
+; But, streams of what? Streams of unification bindings from Part 2!
+
+; Part 1 also noted that streams could be manipulated with "stream operators."
+; Two binary stream operators were demonstrated - `cat` and `alt`.
+
+; Part 3 introduces the notion of a "goal," which is like a unary operator for streams of bindings.
+; Or, perhaps more precisely, it is a function that generates such an operator.
+
+; The most basic goal `==` augments a stream of bindings by the unification of its arguments:
+(defun (== x y)
+  ; Return a unary stream operator that...
+  (lambda (s)
+    ; ...advances its input stream...
+    (let ((s` (advance-stream s)))
+      (if s`
+	; ...and outputs a stream where its arguments have been unified.
+	(let ((b (car s`))
+	      (bs (lambda () ((== x y) (cdr s`)))))
+	  (let (b` (unify x y b))
+	    (if (eq b` 'fail) bs (cons b` bs))))))))
+
+; ^ TODO: Worth refactoring this?
+
+(test (take () (let ((X (var 'X)) (Y (var 'Y)))
+		 ((== (` 1 , X 3) (` 1 2 , Y))
+		  (` ()))))
+      ((((_ . Y) . 3) ((_ . X) . 2))))
+
+(test (take () (let ((X (var 'X)) (Y (var 'Y)))
+	   ((== (` 5 , X 7 8) (` 5 6 , Y 8))
+	    (` ((, X . 4))
+	       ((, X . 5))
+	       ((, X . 6))
+	       ((, X . 7))
+	       ((, X . 8))
+	       ))))
+      ((((_ . Y) . 7) ((_ . X) . 6))))
+
+; TODO: conj, disj, conde
+; TODO: fresh, reify, run
