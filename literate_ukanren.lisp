@@ -2,19 +2,19 @@
 ; This Lisp dialect has some quirks related to runtime type checking,
 ; so we start with some auxiliary definitions to this effect.
 
-(defun (functionp x)
+(defun (function? x)
   (cond ((atom x) ())
 	((atom (car x)) ())
 	((eq (caar x) 'lambda) t)))
 
-(defun (listp x)
-  (and (not (atom x)) (not (functionp x))))
+(defun (list? x)
+  (and (not (atom x)) (not (function? x))))
 
-(defun (numberp x)
+(defun (number? x)
   (+ x 0))
 
-(defun (symbolp x)
-  (and (atom x) (not (numberp x))))
+(defun (symbol? x)
+  (and (atom x) (not (number? x))))
 
 ; Also, some macros for enabling or disabling tests
 
@@ -31,9 +31,9 @@
 (defun (streamp x)
   (or
     ; We say a stream is basically a list...
-    (listp x)
+    (list? x)
     ; ...or a "generator" function.
-    (functionp x)))
+    (function? x)))
 
 ; For simplicity, we can just check (atom x) to see if the stream is empty.
 
@@ -44,7 +44,7 @@
     ; If the stream is empty, there's nothing to take.
     ((atom s) ())
     ; If we encounter a generator function, we'll try calling it.
-    ((functionp s) (advance-stream (s)))
+    ((function? s) (advance-stream (s)))
     ; Otherwise, we can already take one out in the obvious way.
     (t s)))
 
@@ -116,4 +116,60 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Part 2: TODO
+; Part 2: Logic Variables and Unification
+
+; Now for a slight detour - what exactly is a logic variable?
+
+; Logic variables basically act like placeholders or "don't cares" in a Lisp expression.
+; We will want to be able to check if two lists match except for these.
+
+; For lack of a better option, we'll let logic variables be a pair with '_' at the head.
+; (The tail can hold any value at all.)
+(defun (var (x '_)) (cons '_ x))
+(defun (var? x)
+  (if (not (atom x)) (eq (car x) '_)))
+
+; We'll know that two variables are equal when their pointers are equal.
+(defun (var= x y) (eq x y))
+
+; Next, we need some way to do this variable-aware checking.
+; This is called "unification" and results in bindings for those variables on success.
+
+; For example, (1 2 X 4) unified with (1 2 3 4) will bind X with 3.
+
+; First, we need a function that can look up bound logic variables:
+(defun (walk v b)
+  ; If our variable is not a variable (anymore), we're done.
+  (if ((not (var? v)) v)
+    ; Otherwise, treat the bindings as an association list and do a lookup.
+    (let ((x (cdr (assoc v b))))
+      ; If we get nothing, give up and return the variable itself.
+      ; Otherwise, keep looking. (This allows us to have chains of variables.)
+      (if (not x) v (walk x b)))))
+
+; TODO: Explain and add the "occurs" check.
+
+; Now we can write a function to check that two variables/expressions can be unified:
+(defun (unify x y (b ()))
+  ; First, try to get actual values for both arguments.
+  (let ((x (walk x b))
+	(y (walk y b))) ; < TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
+    (cond
+      ; If the two are definitionally equal (via pointer comparison or numeric value), we can stop.
+      ((eq x y) b)
+      ; If one or the other is a logic variable, we can simply bind it to the other.
+      ((var? x) (cons (cons x y) b))
+      ((var? y) (cons (cons y x) b))
+      ; Otherwise, if either one is an atom, the two cannot possibly have the same value.
+      ; (If they did, we should have returned true already.)
+      ((atom x) ())
+      ((atom y) ())
+      ; Lastly, we have the hard case where both arguments are lists.
+      ; In this case, try to unify both the head and tail.
+      (t (let ((b` (unify (car x) (car y) b)))
+	   (unify (cdr x) (cdr y) b`))))))
+
+(let ((X (var 'X))) (unify (` 1 2 , X 4) (` 1 2 3 4) ()))
+(let ((X (var 'X))) (unify (` 1 , X , X 4) (` 1 3 3 4) ()))
+(let ((X (var 'X)) (Y (var 'Y))) (unify (` 1 , X , X 4) (` 1 3 3 , Y) ()))
+(let ((X (var 'X))) (unify (` 1 ,. X) (` 1 2 3 4) ()))
