@@ -196,7 +196,7 @@
 ; But, streams of what? Streams of environments from Part 2, of course!
 
 ; Part 1 also demonstrated two generalized operators for streams: `cat` and `alt`.
-; Part 3 introduces "goals," which are specialized operator for streams of environments.
+; Part 3 introduces "goals," which are specialized operators for streams of environments.
 ; A mini/μKanren program is just a combination of these.
 
 ; The most fundamental goal constructor `==` modifies a stream of environments
