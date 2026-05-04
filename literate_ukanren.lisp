@@ -39,12 +39,12 @@
 
 ; So, how do we take an item out of a stream?
 ; First, we want the stream to be a list so we have something tangible to take.
-(defun (advance-stream s)
+(defun (next s)
   (cond
     ; If the stream is empty, there's nothing to take.
     ((atom s) ())
     ; If we encounter a generator function, we'll try calling it.
-    ((function? s) (advance-stream (s)))
+    ((function? s) (next (s)))
     ; Otherwise, we can already take one out in the obvious way.
     (t s)))
 
@@ -60,10 +60,10 @@
     ; If the stream is an atom (probably nil), there's nothing left to take.
     ((atom s) s)
     ; If a number greater than zero was given, count down from there.
-    ((> n 0) (let ((s` (advance-stream s)))
+    ((> n 0) (let ((s` (next s)))
 	       (if s` (cons (car s`) (take (- n 1) (cdr s`))))))
     ; If nil was given, take as many as possible.
-    ((not n) (let ((s` (advance-stream s)))
+    ((not n) (let ((s` (next s)))
 	       (if s` (cons (car s`) (take () (cdr s`))))))))
 
 (test (take 3 '(1 2 3 4 5 6 7))
@@ -83,7 +83,7 @@
   ; Inside our new stream:
   (lambda ()
     ; First, advance stream 1.
-    (let ((s1` (advance-stream s1)))
+    (let ((s1` (next s1)))
       ; If it turns out to be empty, continue from stream 2.
       (if (atom s1`) s2
 	; Otherwise, present the first item from stream 1 and repeat.
@@ -103,7 +103,7 @@
 (defun (alt s1 s2)
   ; Same as cat...
   (lambda ()
-    (let ((s1` (advance-stream s1)))
+    (let ((s1` (next s1)))
       (if (atom s1`) s2
 	; ...EXCEPT: let stream 2 go next before continuing with stream 1.
 	(cons (car s1`) (alt s2 (cdr s1`)))))))
@@ -155,7 +155,7 @@
 (defun (unify x y e)
   ; First, try to get actual values for both arguments.
   (let ((x (walk x e))
-	(y (walk y e))) ; < TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
+	(y (walk y e))) ; <- TODO: Convince yourself the recursion in `walk` is actually necessary in light of these.
     (cond
       ; If the two are definitionally equal (via pointer comparison or numeric value), we can stop.
       ((eq x y) e)
@@ -164,7 +164,7 @@
       ((var? y) (cons (cons y x) e))
       ; Otherwise, if either one is an atom, the two cannot possibly have the same value.
       ; (If they did, we should have returned true already.)
-      ((atom x) 'fail) ; < TODO: Is there a cleaner way to distinguish empty environments from failure?
+      ((atom x) 'fail) ; <- TODO: Is there a cleaner way to distinguish empty environments from failure?
       ((atom y) 'fail)
       ; Lastly, we have the harder case where both arguments are lists.
       ; In this case, we try to unify the head, then the tail.
@@ -187,19 +187,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Part 3: Streams + Unification = Goals
 
-; Part 1 mentions that the Kanren family of logic languages works by manipulating streams.
+; Part 1 mentions that the miniKanren family of logic languages works by manipulating streams.
 ; But, streams of what? Streams of environments from Part 2, of course!
 
 ; Part 1 also demonstrated two generalized operators for streams: `cat` and `alt`.
 ; Part 3 introduces "goals," which are specialized operator for streams of environments.
-; A mini/μKanren program is just a combination of these!
+; A mini/μKanren program is just a combination of these.
 
-; The most fundamental goal constructor `==` augments a stream of environments by unifying its arguments:
+; The most fundamental goal constructor `==` modifies a stream of environments
+; by attempting to unify its arguments in each environment:
 (defun (== x y)
   ; Return a unary stream operator that...
   (lambda (s)
-    ; ...extracts the head (e) and tail (bs) of its input stream...
-    (let ((s` (advance-stream s)))
+    ; ...extracts the head (e) and tail (es) of its input stream...
+    (let ((s` (next s)))
       (if s`
 	(let ((e (car s`)) (es (cdr s`)))
 	  ; ...tries to unify its arguments in each environment from the stream...
@@ -226,5 +227,42 @@
       ((((_ . Y) . 7) ((_ . X) . 6))))
 
 
-; TODO: conj, disj, conde
-; TODO: fresh, reify, run
+; One goal is not much of a logic program, however.
+; To combine goals, we have two obvious connectives:
+; * Conjunction (logical AND)
+; * Disjunction (logical OR)
+
+; Thankfully, these can be implemented intuitively with what we have.
+
+; Conjunction: Pass the stream through one goal, then the other.
+; This requires each environment in the output stream to pass through BOTH goals.
+(defun (conj g1 g2)
+  ; Take a stream...
+  (lambda (s)
+    ; ...and pass its contents through both goals.
+    (g2 (g1 s))))
+
+; TODO: Attempt at fair conjunction?
+
+; Disjunction: Pass the stream through both goals and combine the results.
+; This requires each environment in the output stream to pass through EITHER goal.
+(defun (disj g1 g2)
+  ; Take a stream...
+  (lambda (s)
+    ; ...pass it to both goals and combine them.
+    (alt (g1 s) (g2 s))))
+
+; Either `cat` or `alt` will work to combine the two streams in `disj`.
+; Using `cat` may result in behavior closer to Prolog-style SLD clause resolution.
+; However, `alt` may be preferable in general, in case the first goal diverges.
+
+(test (take () ((let ((X (var 'X)) (Y (var 'Y)))
+		  (conj (disj (== X 1) (== X 2))
+			(disj (== Y 3) (== Y 4))))
+		'(())))
+      ((((_ . Y) . 3) ((_ . X) . 1))
+       (((_ . Y) . 4) ((_ . X) . 1))
+       (((_ . Y) . 3) ((_ . X) . 2))
+       (((_ . Y) . 4) ((_ . X) . 2))))
+
+; TODO: conde, fresh, reify, run
