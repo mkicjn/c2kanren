@@ -352,14 +352,22 @@
 ; This makes it awkward to call `reify` directly, since we have to `take` first.
 ; And before we can `take`, we have to "seed" our program with an empty environment.
 
-; We remedy both annoyances simultaneously with a simple `run` macro.
+; We remedy both annoyances simultaneously with a `run` macro.
 
-(defun (reify-all q es)
+(defun (reify-one q es)
   (map (lambda (e) (reify q e)) es))
 
+(defun (reify-all qs es)
+  (map (lambda (e) (map (lambda (q) (reify q e)) qs)) es))
+
 (defmacro (run n q g)
-  (` fresh (, q)
-     (reify-all , q (take , n (, g '(()))))))
+  (if (atom q)
+    (` fresh (, q)
+       (reify-one , q
+		  (take , n (, g '(())))))
+    (` fresh , q
+       (reify-all (list ,. q)
+		  (take , n (, g '(())))))))
 
 (test (run () Q (conde ((== Q 5)) ((== Q 6) (== Q 7)) ((== Q 8))))
       (5 8))
@@ -370,16 +378,17 @@
 (define appendo
   (lambda (X Y Z)
     (lambda (s)
-      (lambda ()
-	((fresh
-	   (X0 Xs Zs)
-	   (conde ((== X ())
-		   (== Y Z))
-		  ((== X (cons X0 Xs))
-		   (== Z (cons X0 Zs))
-		   (appendo Xs Y Zs))))
-	 s)))))
+      (if (atom s) ()
+	; ^ Needed due to lack of traditional μKanren's `bind`
+	; TODO: Consider whether to simplify or keep this style
+	(lambda ()
+	  ((fresh
+	     (X0 Xs Zs)
+	     (conde ((== X ())
+		     (== Y Z))
+		    ((== X (cons X0 Xs))
+		     (== Z (cons X0 Zs))
+		     (appendo Xs Y Zs))))
+	   s))))))
 
-(run 6 Q (fresh (A B) (appendo A B '(a b c d e)) (== Q (list A B))))
-; ^ TODO: Why do (run () ...) and (run 7 ...) not terminate here?
-; ^ TODO: `relation` macro
+(run () (A B) (appendo A B '(a b c d e)))
