@@ -48,6 +48,7 @@
 	X("\004eval", sym_eval) \
 	X("\006expand", sym_expand) \
 	X("\006gensym", sym_gensym) \
+	X("\005print", sym_print) \
 	X("\001+", sym_add) \
 	X("\001-", sym_sub) \
 	X("\001*", sym_mul) \
@@ -435,6 +436,14 @@ void *eval_base(void *x, void *env)
 	BINOP(sym_equ, TOBOOL, ==, NULL)
 	BINOP(sym_eq,  TOBOOL, ==, TOBOOL(a == b))
 	// ^ Override `eq` to handle numbers
+
+	// Print function - useful for debugging
+	if (car(x) == sym_print) {
+		void *a = eval(cadr(x), env);
+		print(a);
+		printf("\n");
+		return a;
+	}
 
 	// Handle primitive functions
 	if (car(x) == sym_car) // car
