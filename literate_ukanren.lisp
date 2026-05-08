@@ -1,7 +1,7 @@
 ; (Heavily WIP)
 
 ; This source code is meant to be a personal attempt at implementing and explaining μKanren from scratch,
-; so it's written in a "literate style" based on personal understanding and may deviate from the paper.
+; so it's written in a "literate style" based on personal understanding and deviates from the paper slightly.
 
 ; First of all, this particular Lisp has some quirks related to runtime type checking,
 ; so we start with some auxiliary definitions to this effect.
@@ -51,7 +51,7 @@
   (lambda ()
     (cons x (repeat x))))
 
-; Here's a function that returns a stream representing a sequence of numbers.
+; Here's a function that returns a stream representing a sequence of integers.
 (defun (seq from to)
   (if (> to from)
     (cons from (lambda () (seq (+ from 1) to)))
@@ -100,13 +100,17 @@
 
 ; ^ IMPORTANT: Take note of the idiom above; it will be repeated many times!
 ; Whenever we take a stream as an argument, we generally want to do three things:
-; 1. Try to advance the stream
-; 2. Check if the advanced stream is empty
-; 3. Return (at least) one concrete result and a generator for the rest.
+; 1. Try to advance the stream.
+; 2. Check if the advanced stream is empty.
+; 3. Return one concrete result and a generator for the rest.
 ;
-; Why? To make sure we keep producing concrete values rather than delaying forever.
-; When we start manipulating streams in more complex ways later, these rules will help
+; Why one result? To keep make sure we produce concrete values instead of delaying.
+; When we start manipulating streams in more complex ways later, this will help
 ; us avoid getting stuck in infinite loops building infinitely complex generators.
+;
+; Why a generator for the rest? In case there are infinitely many results!
+; If we don't calculate the values lazily, we risk immediately running out of memory.
+; Doing this also makes certain techniques behave more predictably later.
 
 (test (take () (map-stream (seq 5 10) (lambda (n) (+ n 5))))
       (10 11 12 13 14 15))
@@ -145,7 +149,7 @@
 (test (take 10 (cat (seq 100 200) (seq 200 300)))
       (100 101 102 103 104 105 106 107 108 109))
 
-; Hmm... but in the above test case, we might imagine we want to see results from both streams.
+; Hmm... but in the above test case, we might imagine we want to see both streams represented.
 ; Let's try a small modification to get a new "alternating" stream operator:
 
 (defun (alt s1 s2)
@@ -169,7 +173,7 @@
 
 ; Logic variables basically act like placeholders or "don't cares" in a list.
 
-; For lack of a better option, we'll let logic variables be a pair with '_' at the head.
+; For lack of a better option, we'll let logic variables be represented by a pair with '_' at the head.
 ; (The tail can hold any value at all.)
 (defun (var (x '_)) (cons '_ x))
 (defun (var? x)
@@ -178,7 +182,7 @@
 ; We'll know that two variables are equal when their pointers are equal.
 (defun (var= x y) (eq x y))
 
-; The purpose of these is to check if two lists can be made equal by assigning values to their variables.
+; The purpose of these is to check if two nested lists can be made equal by assigning variables inside them.
 ; This process is called "unification."
 
 ; For example, (1 2 (_ . X) 4) unified with (1 2 3 4) will assign variable (_ . X) to the value 3.
