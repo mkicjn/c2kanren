@@ -299,8 +299,10 @@
   (lambda (s)
     (let ((s (advance s)))
       (if (atom s) ()
-	; ...and pass its contents through both goals.
-	(g2 (g1 s))))))
+	; ...and return a generator...
+	(lambda ()
+	  ; ...that passes the stream through both goals.
+	  (g2 (g1 s)))))))
 
 ; TODO: Attempt at fair conjunction?
 
@@ -311,8 +313,10 @@
   (lambda (s)
     (let ((s (advance s)))
       (if (atom s) ()
-	; ...pass it to both goals, and combine them.
-	(alt (g1 s) (g2 s))))))
+	; ...and return a generator...
+	(lambda ()
+	  ; ...that passes it to both goals and combines them.
+	  (alt (g1 s) (g2 s)))))))
 
 ; ^ Either `cat` or `alt` will work to combine the two streams in `disj`.
 ; Using `cat` may result in behavior closer to Prolog-style SLD clause resolution.
@@ -356,10 +360,11 @@
 ; Now for `conde` itself:
 (defmacro (conde . forms)
   ; (conde (a b) (c d)) => (disj (conj a b) (conj c d))
-  ((chain 'disj) (map (chain 'conj) forms)))
+  (` lambda (s) (, ((chain 'disj) (map (chain 'conj) forms)) s)))
+; ^ TODO: Use gensym to make macro hygienic?
 
 (test (expand '(conde (a b c) (d e f)))
-      (disj (conj a (conj b c)) (conj d (conj e f))))
+      (lambda (s) ((disj (conj a (conj b c)) (conj d (conj e f))) s)))
 
 ; Second issue: Having to manually instantiate fresh logic variables with `let` and `var`.
 ; We can introduce the more compact `fresh` notation:
@@ -419,60 +424,47 @@
 ; TODO: `defrelation`
 
 (defun (appendo X Y Z)
-  (lambda (s)
-    (lambda ()
-      ((fresh
-	 (X0 Xs Zs)
-	 (conde ((== X ())
-		 (== Y Z))
-		((== X (cons X0 Xs))
-		 (== Z (cons X0 Zs))
-		 (appendo Xs Y Zs))))
-       s))))
+  (fresh
+    (X0 Xs Zs)
+    (conde ((== X ())
+	    (== Y Z))
+	   ((== X (cons X0 Xs))
+	    (== Z (cons X0 Zs))
+	    (appendo Xs Y Zs)))))
 
 (run () (A B) (appendo A B '(a b c d e)))
 (run 5 (A B C) (appendo A B C))
 
 (defun (conso A D C)
-  (lambda (s) (lambda () ((== C (cons A D)) s))))
+  (== C (cons A D)))
 
 (defun (caro C A)
-  (lambda (s) (lambda () ((fresh (D) (conso A D C)) s))))
+  (fresh (D) (conso A D C)))
 
 (defun (cdro C D)
-  (lambda (s) (lambda () ((fresh (A) (conso A D C)) s))))
+  (fresh (A) (conso A D C)))
 
 (defun (suffix P L)
-  (lambda (s)
-    (lambda ()
-      ((conde ((== P L))
-	      ((fresh (L1)
-		      (cdro L L1)
-		      (suffix P L1))))
-       s))))
+  (conde ((== P L))
+	 ((fresh (L1)
+		 (cdro L L1)
+		 (suffix P L1)))))
 
 (defun (prefix P L)
-  (lambda (s)
-    (lambda ()
-      ((conde ((== P ()))
-	      ((fresh (X R1 R2)
-		      (conso X R1 P)
-		      (conso X R2 L)
-		      (prefix R1 R2)
-		      )))
-       s))))
+  (conde ((== P ()))
+	 ((fresh (X R1 R2)
+		 (conso X R1 P)
+		 (conso X R2 L)
+		 (prefix R1 R2)))))
 
 (run () Q (prefix Q '(a b c d)))
 (run () Q (suffix Q '(a b c d)))
 
 (defun (proper-listo L)
-  (lambda (s)
-    (lambda ()
-      ((conde ((== L ()))
-	      ((fresh (X Xs)
-		      (conso X Xs L)
-		      (proper-listo Xs))))
-       s))))
+  (conde ((== L ()))
+	 ((fresh (X Xs)
+		 (conso X Xs L)
+		 (proper-listo Xs)))))
 
 (run 5 Q (proper-listo Q))
 (run () Q (proper-listo (cons Q 'x)))
