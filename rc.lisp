@@ -145,6 +145,10 @@
 (defun (curry f a)
   (lambda args (f a . args)))
 
+; Scheme-like `apply`
+(defun (apply f args)
+  (f . args))
+
 ; Applicative fixpoint combinator
 (define Z
   (lambda (f)
@@ -154,10 +158,11 @@
 ; Variadic append in one definition via Z combinator
 (defun (append . args)
   ((Z (lambda (append-cps)
-	(lambda (cont l . ls)
-	  (if (atom l) (if (atom ls) (cont l) (append-cps cont . ls))
-	    (append-cps (lambda (x) (cont (cons (car l) x)))
-			(cdr l) . ls)))))
+	(lambda (cont . ls)
+	  (let ((l (car ls)) (ls (cdr ls)))
+	    (if (atom l) (if (atom ls) (cont l) (append-cps cont . ls))
+	      (append-cps (lambda (x) (cont (cons (car l) x)))
+			  (cdr l) . ls))))))
    ident . args))
 
 ; List flattening via append
