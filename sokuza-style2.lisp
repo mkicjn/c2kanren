@@ -9,14 +9,11 @@
 	((atom (car f)) ())
 	((eq (caar f) 'lambda) t)))
 
-(defun (next s)
-  (cond ((functionp s) (next (s)))
-	(t s)))
-
 (defun (take n s)
-  (if (> 1 n) ()
-    (let ((s (next s)))
-      (if s (cons (car s) (take (- n 1) (cdr s)))))))
+  (cond ((> 1 n) ())
+	((atom s) ())
+	((functionp s) (take n (s)))
+	(t (cons (car s) (take (- n 1) (cdr s))))))
 
 (defun (stream-join s1 s2)
   (cond ((not s1) s2)
@@ -77,13 +74,13 @@
 
 ; Reification
 
-(defun (reify x)
+(defun (reifier x)
   (lambda (s)
     (let ((x (lookup x s)))
       (cond ((var? x) x)
 	    ((atom x) x)
-	    (t (cons ((reify (car x)) s)
-		     ((reify (cdr x)) s)))))))
+	    (t (cons ((reifier (car x)) s)
+		     ((reifier (cdr x)) s)))))))
 
 
 ; Interface
@@ -100,11 +97,10 @@
   (` let , (map (lambda (v) (` , v (var (quote , v)))) vars)
      , ((chain 'conj) body)))
 
-(defmacro (run n vars . body)
-  (` let , (map (lambda (v) (` , v (var (quote , v))))
-		(if (atom vars) (list vars) vars))
-     (map (reify , (if (atom vars) vars (` list ,. vars)))
-	  (take , n (, ((chain 'conj) body) ())))))
+(defmacro (run n q g)
+  (` fresh , (if (atom q) (list q) q)
+     (map (reifier , (if (atom q) q (cons 'list q)))
+	  (take , n (, g '())))))
 
 
 ; Examples

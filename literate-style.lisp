@@ -1,7 +1,6 @@
-; (Heavily WIP)
+; This source code is a personal attempt at explaining the miniKanren-like languages from scratch,
+; so it's written in a "literate style" based on personal understanding and may deviate in terminology.
 
-; This source code is meant to be a personal attempt at implementing and explaining μKanren from scratch,
-; so it's written in a "literate style" based on personal understanding and deviates from the paper slightly.
 
 ; First of all, this particular Lisp has some quirks related to runtime type checking,
 ; so we start with some auxiliary definitions to this effect.
@@ -30,7 +29,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Part 1: Streams and Stream Manipulation
 
-; At its core, μKanren (and miniKanren) work by manipulating streams.
+; At its core, the miniKanren family of languages works by manipulating answer streams.
+; We'll get to what an "answer" is later, but for now, let's focus on streams.
 
 ; What is a stream?
 (defun (streamp x)
@@ -57,27 +57,17 @@
     (cons from (lambda () (seq (+ from 1) to)))
     (list to)))
 
-; So, how do we take an item out of a stream?
-; First, we want the stream to be a list so we have something tangible to take.
-(defun (advance s)
-  (cond
-    ; If the stream is empty, there's nothing to take.
-    ((atom s) ())
-    ; If we encounter a generator function, we'll try calling it.
-    ((function? s) (advance (s)))
-    ; Otherwise, we can already take one out in the obvious way.
-    (t s)))
-
-; Now we can take some numbers from these examples.
+; So, how do we take a certain number of elements from of a stream?
 (defun (take n s)
-  (let ((s (advance s)))
-    (cond
-      ; If the stream is an atom (probably nil), there's nothing left to take.
-      ((atom s) s)
-      ; If a number greater than zero was given, count down from there.
-      ((> n 0) (if (atom s) () (cons (car s) (take (- n 1) (cdr s)))))
-      ; If nil was given, take as many as possible.
-      ((not n) (if (atom s) () (cons (car s) (take () (cdr s))))))))
+  (cond
+    ; First of all, if we're done taking items, we can return the empty list.
+    ((> 1 n) ())
+    ; Likewise, if we have an empty stream, there's nothing left to take.
+    ((atom s) ())
+    ; If we have a generator, we can proceed by calling it.
+    ((function? s) (take n (s)))
+    ; Otherwise, we can take from the head of the stream and continue with the tail.
+    (t (cons (car s) (take (- n 1) (cdr s))))))
 
 (test (take 5 zeros)
       (0 0 0 0 0))
@@ -89,38 +79,32 @@
       (100 101 102 103 104))
 (test (take 10 (seq 15 20))
       (15 16 17 18 19 20))
+
+; (Because of the way numbers are handled in this Lisp, "take ()" means "take all.")
 (test (take () (seq 55 65))
       (55 56 57 58 59 60 61 62 63 64 65))
 
 ; We might also consider a `map` function for streams:
 (defun (map-stream s f)
-  (let ((s (advance s)))
-    (if (atom s) ()
-      (cons (f (car s)) (lambda () (map-stream (cdr s) f))))))
-
-; ^ IMPORTANT: Take note of the idiom above; it will be repeated many times!
-; Whenever we take a stream as an argument, we generally want to do three things:
-; 1. Try to advance the stream.
-; 2. Check if the advanced stream is empty.
-; 3. Return one concrete result and a generator for the rest.
-;
-; Why one result? To keep make sure we produce concrete values instead of delaying.
-; When we start manipulating streams in more complex ways later, this will help
-; us avoid getting stuck in infinite loops building infinitely complex generators.
-;
-; Why a generator for the rest? In case there are infinitely many results!
-; If we don't calculate the values lazily, we risk immediately running out of memory.
-; Doing this also makes certain techniques behave more predictably later.
+  (cond
+    ; If we have an empty stream, there is nothing to do
+    ((atom s) ())
+    ; If we have a generator, return a generator for the rest of the mapped list.
+    ((function? s) (lambda () (map-stream (s) f)))
+    ; Otherwise, apply the function to the head and continue with the tail.
+    (t (cons (f (car s)) (map-stream (cdr s) f)))))
 
 (test (take () (map-stream (seq 5 10) (lambda (n) (+ n 5))))
       (10 11 12 13 14 15))
 
-; What if we want a more powerful map function so we can filter out elements, or add new ones?
+; What if we want a more powerful map function that can filter out elements, or add new ones?
 ; This is easy - we can just swap `cons` for `append`, and make our function return a list.
 (defun (adjust-stream s f)
-  (let ((s (advance s)))
-    (if (atom s) ()
-      (append (f (car s)) (lambda () (adjust-stream (cdr s) f))))))
+  ; Same as `map-stream`
+  (cond ((atom s) ())
+	((function? s) (lambda () (adjust-stream (s) f)))
+	; But append the results from f, which should return a (possibly empty) list of results.
+	(t (append (f (car s)) (adjust-stream (cdr s) f)))))
 
 (test (take () (adjust-stream (seq 5 10) (lambda (n) (list (+ n 5))) (seq 5 10)))
       (10 11 12 13 14 15))
@@ -133,34 +117,28 @@
 ; Let's try building a "higher-order" generator, a stream operator.
 
 ; Let's try to make a "concatenate" operator that takes two streams and returns another:
-(defun (cat s1 s2)
-  ; First, advance stream 1.
-  (let ((s1 (advance s1)))
-    ; If it turns out to be empty, continue from stream 2.
-    (if (atom s1) (advance s2)
-      ; Otherwise, present the first item from stream 1 and repeat.
-      (cons (car s1) (lambda () (cat (cdr s1) s2))))))
+(defun (concatenate s1 s2)
+  (cond ((atom s1) s2)
+	((function? s1) (lambda () (concatenate (s1) s2)))
+	(t (cons (car s1) (concatenate (cdr s1) s2)))))
 
-(test (take 10 (cat '(1 2 3 4 5) '(11 12 13 14 15)))
+(test (take 10 (concatenate '(1 2 3 4 5) '(11 12 13 14 15)))
       (1 2 3 4 5 11 12 13 14 15))
 
 ; It works!
 
-(test (take 10 (cat (seq 100 200) (seq 200 300)))
+(test (take 10 (concatenate (seq 100 200) (seq 200 300)))
       (100 101 102 103 104 105 106 107 108 109))
 
 ; Hmm... but in the above test case, we might imagine we want to see both streams represented.
 ; Let's try a small modification to get a new "alternating" stream operator:
 
-(defun (alt s1 s2)
-  ; Same as cat...
-  (let ((s1 (advance s1)))
-    (if (atom s1) (advance s2)
-      ; ...EXCEPT: let stream 2 go next before continuing with stream 1.
-      (cons (car s1) (lambda () (alt s2 (cdr s1)))))))
-;                               ^^^^^^^^^^^^^^^^^
+(defun (alternate s1 s2)
+  (cond ((atom s1) s2)
+	((function? s1) (lambda () (alternate s2 (s1))))
+	(t (cons (car s1) (alternate (cdr s1) s2)))))
 
-(test (take 10 (alt (seq 100 200) (seq 200 300)))
+(test (take 10 (alternate (seq 100 200) (seq 200 300)))
       (100 200 101 201 102 202 103 203 104 204))
 
 ; Looks promising!
@@ -169,25 +147,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Part 2: Logic Variables and Unification
 
-; Now for a slight detour - what exactly is a logic variable?
+; In the beginning, it was explained that miniKanren works by manipulating "answer streams."
+; Now we're ready to talk about what those answers are.
 
-; Logic variables basically act like placeholders or "don't cares" in a list.
+; Each "answer" is essentially a set of "satisfying assignments" for logic variables.
+; Or, in other words, an environment of variable bindings.
 
-; For lack of a better option, we'll let logic variables be represented by a pair with '_' at the head.
-; (The tail can hold any value at all.)
-(defun (var (x '_)) (cons '_ x))
+; Logic variables are exactly what they sound like - named placeholders.
+; We are trying to answer the question of what values to assign them to so that a proposition becomes true.
+
+; For example, if we have the goal to show "(1 2 _X_ 4) = (1 2 3 4)", we can satisfy it by assigning _X_ := 3.
+; This process of making two structures equal is called "unification."
+
+; For lack of a better option, we'll represent variables as a cons pair with '_' at the head.
+; The tail can hold any value at all.
+(defun (var (x ())) (cons '_ x))
 (defun (var? x)
   (if (not (atom x)) (eq (car x) '_)))
 
 ; We'll know that two variables are equal when their pointers are equal.
 (defun (var= x y) (eq x y))
 
-; The purpose of these is to check if two nested lists can be made equal by assigning variables inside them.
-; This process is called "unification."
-
-; For example, (1 2 (_ . X) 4) unified with (1 2 3 4) will assign variable (_ . X) to the value 3.
-
-; Since variables are bound according to some environment, unification modifies its environment.
+; Since variables are bound according to some environment, unification may modify its environment.
 ; It does so until it succeeds, returning a new environment, or fails, returning nothing.
 
 ; First, we need to know how to look up logic variables in an environment:
@@ -208,7 +189,7 @@
   (let ((x (lookup x e))
 	(y (lookup y e)))
     (cond
-      ; If the two are definitionally equal (via pointer comparison or numeric value), we can stop.
+      ; If the two are equal (via pointer comparison or numeric value), we can stop.
       ((eq x y) e)
       ; If one or the other is a logic variable, we can simply bind it to the other.
       ((var? x) (cons (cons x y) e))
@@ -236,111 +217,86 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Part 3: Goals as Streams of Unification Results
+; Part 3: Goals as Answer Stream Adjustment Functions
 
-; Part 1 mentions that the miniKanren family of logic languages works by manipulating streams.
-; But, streams of what? Streams of environments from Part 2, of course!
+; Finally, we can put it all together to get a very small core logic language.
+; Part 1 demonstrated a few general operators for streams of any type.
+; Part 2 introduced answers as a set of satisfying assignments.
 
-; Part 1 also demonstrated a few general operators for streams.
-; Part 3 introduces "goals," which use these to introduce new operators for streams of environments.
+; Part 3 combines these by introducing "goals", and goal constructors.
+; A "goal" (foreshadowed in Part 2) is a function from a candidate answer to a set of newly refined answers.
+; The set of new answers may be empty if the goal cannot be satisfied in the context of the candidate answer.
 
-; The most fundamental goal constructor in this contex is `==`.
-; This goal attempts to unify its arguments in each environment:
+; The most fundamental goal constructor, which is for unification, is called `==`:
 (defun (== x y)
-  ; Return a unary stream operator that...
-  (lambda (s)
-    ; ...for each environment in the stream...
-    (adjust-stream s
-      ; ...tries to unify its arguments in that environment.
-      (lambda (e)
-	(let ((e (unify x y e)))
-	  (if (eq e 'fail) () (list e)))))))
+  ; Return a function that takes one candidate environment,
+  (lambda (e)
+    ; tries to unify its arguments in that environment,
+    (let ((e (unify x y e)))
+      ; and returns a stream of (0 to 1) new environments where x and y are unified.
+      (if (eq e 'fail) () (list e)))))
 
 (test (take () (let ((X (var 'X)) (Y (var 'Y)))
 		 ((== (` 1 , X 3) (` 1 2 , Y))
-		  (` ()))))
+		  ())))
       ((((_ . Y) . 3) ((_ . X) . 2))))
 
-; ^ Notice that we pass our goal a stream containing one empty environment to run it in the "general" case.
-; We could also manually specify a stream of candidate environments to try:
+; ^ Notice that we can pass our goal an empty environment to let it run unburdened by any existing bindings.
+; We could also take a stream of candidate environments and filter it through our goal, as we saw in Part 1.
 
 (test (take () (let ((X (var 'X)) (Y (var 'Y)))
-	   ((== (` 5 , X 7 8) (` 5 6 , Y 8))
-	    (` ((, X . 4))
-	       ((, X . 5))
-	       ((, X . 6))
-	       ((, X . 7))
-	       ((, X . 8))
-	       ))))
+	   (adjust-stream
+	     (` ((, X . 4))
+		((, X . 5))
+		((, X . 6))
+		((, X . 7))
+		((, X . 8)))
+	     (== (` 5 , X 7 8) (` 5 6 , Y 8)))))
       ((((_ . Y) . 7) ((_ . X) . 6))))
 
+; Hopefully from this example, it is clear how goals and answer streams relate to each other.
+; Goals are functions that can be used to adjust the answer stream, just as before.
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Part 4: Logic Programs as Combinations of Goals
-
-; But one goal is still not much of a logic program.
-
-; Our goals take a stream of environments and produce a new stream of environments.
-; So, it should be possible to join them together to make more interesting programs.
-
-; Goals and environments can be arbitrarily complex in principle.
-; TODO: Leverage this flexibility to try to implement constraint logic programming.
-
-; But to start with, we can at least implement two simple logical connectives:
-; * Conjunction (logical AND)
-; * Disjunction (logical OR)
-
-; Thankfully, these are intuitive with what we have.
-
-; Conjunction: Pass the stream through one goal, then the other.
-; This requires each environment in the output stream to pass through BOTH goals.
-(defun (conj g1 g2)
-  ; Take a stream...
-  (lambda (s)
-    (let ((s (advance s)))
-      (if (atom s) ()
-	; ...and return a generator...
-	(lambda ()
-	  ; ...that passes the stream through both goals.
-	  (g2 (g1 s)))))))
-
-; TODO: Attempt at fair conjunction?
-
-; Disjunction: Pass the stream through both goals and combine the results.
-; This requires each environment in the output stream to pass through EITHER goal.
+; Now, just as we also showed how to combine two streams in Part 1, we can combine answer streams according to two goals.
+; This essentially corresponds to logical disjunction, since each output answer satisfies EITHER goal:
 (defun (disj g1 g2)
-  ; Take a stream...
-  (lambda (s)
-    (let ((s (advance s)))
-      (if (atom s) ()
-	; ...and return a generator...
-	(lambda ()
-	  ; ...that passes it to both goals and combines them.
-	  (alt (g1 s) (g2 s)))))))
+  ; Construct a goal that...
+  (lambda (e)
+    ; passes the candidate answer to both goals, then combines their outputs.
+    (alternate (g1 e) (g2 e))))
 
-; ^ Either `cat` or `alt` will work to combine the two streams in `disj`.
-; Using `cat` may result in behavior closer to Prolog-style SLD clause resolution.
-; However, `alt` may be preferable in general, in case the first goal produces tons of results.
+; ^ Quick aside: Either `concatenate` or `alternate` will work to combine the two streams in `disj`.
+; Using `concatenate` may result in behavior closer to Prolog-style SLD clause resolution.
+; However, `alternate` may be preferable in general, in case the first goal produces tons of results (or repeatedly fails).
 ; This helps solve the problem of unfair enumeration without strategies like iterative deepening.
-; (Don't worry if this Prolog jargon goes over your head - it is not that important!)
+; (Don't worry if some of this Prolog-based jargon goes over your head - it is not that important.)
+
+; By applying `adjust-stream`, we can also emulate logical conjunction, where answers must satisfy BOTH goals.
+
+; This produces an answer stream where each answer has passed through BOTH goals:
+(defun (conj g1 g2)
+  ; Construct a goal that...
+  (lambda (e)
+    ; passes the candidate answer to one goal, then adjusts its output according to the other.
+    (adjust-stream (g1 e) g2)))
 
 (test (take () ((let ((X (var 'X)) (Y (var 'Y)))
 		  (conj (disj (== X 1) (== X 2))
 			(disj (== Y 3) (== Y 4))))
-		'(())))
+		'()))
       ((((_ . Y) . 3) ((_ . X) . 1))
        (((_ . Y) . 4) ((_ . X) . 1))
        (((_ . Y) . 3) ((_ . X) . 2))
        (((_ . Y) . 4) ((_ . X) . 2))))
 
-; Remember that we can run our logic program by passing it a stream containing an empty environment.
-; This will become relevant again in just a moment...
+; Remember that we can execute a goal unburdened by passing it an empty environment.
+; This will become relevant again in just a moment, when we improve the user interface.
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Part 5: Improving the User Interface
+; Part 4: Improving the User Interface
 
-; We have a very small logic programming language working now.
+; We have a very small logic programming language more-or-less working now.
 ; The last few issues are mostly a matter of convenience.
 
 ; First issue: Having to manually chain calls to `conj` and `disj`.
@@ -386,32 +342,30 @@
 
 ; First, let's turn an object from the environment into a real thing we can look at.
 ; In logic programming, this is called "reification." (Literally from rēs "thing" + faciō "make")
-(defun (reify v e)
-  (let ((x (lookup v e)))
-    (cond ((var? x) x)
-	  ((atom x) x)
-	  (t (cons (reify (car x) e)
-		   (reify (cdr x) e))))))
+(defun (reifier v)
+  (lambda (e)
+    (let ((x (lookup v e)))
+      (cond ((var? x) x)
+	    ((atom x) x)
+	    (t (cons ((reifier (car x)) e)
+		     ((reifier (cdr x)) e)))))))
 
-(test (fresh (X Y Z) (reify (list Z) (list (cons X 'a) (cons Y 'b) (cons Z (cons X Y)))))
+(test (fresh (X Y Z) ((reifier (list Z)) (list (cons X 'a) (cons Y 'b) (cons Z (cons X Y)))))
       ((a . b)))
 
-(test (fresh (X Y Z) (reify (list Z Z) (list (cons X 'a) (cons Z (cons X Y)))))
+(test (fresh (X Y Z) ((reifier (list Z Z)) (list (cons X 'a) (cons Z (cons X Y)))))
       ((a _ . Y) (a _ . Y)))
 
 ; Of course, our logic programs return not just one environment, but a stream of many environments.
-; This makes it awkward to call `reify` directly, since we have to `take` first.
+; This makes it awkward to call `reifier` directly, since we have to `take` first.
 ; And before we can `take`, we still have to remember to feed our program that empty environment.
 
 ; Both annoyances are remedied simultaneously with a macro called `run`.
 
-(defun (reify-all x s)
-  (map (lambda (e) (reify x e)) s))
-
 (defmacro (run n q g)
   (` fresh , (if (atom q) (list q) q)
-     (reify-all , (if (atom q) q (cons 'list q))
-		(take , n (, g '(()))))))
+     (map (reifier , (if (atom q) q (cons 'list q)))
+	  (take , n (, g '())))))
 
 (test (run () Q (conde ((== Q 5)) ((== Q 6) (== Q 7)) ((== Q 8))))
       (5 8))
@@ -420,51 +374,81 @@
       ((5) (8)))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Part 5: Programming Examples
+
 ; Now for some programming examples:
 ; TODO: `defrelation`
+; TODO: Comments, esp. explaining the delayed evaluation
 
 (defun (appendo X Y Z)
-  (fresh
-    (X0 Xs Zs)
-    (conde ((== X ())
-	    (== Y Z))
-	   ((== X (cons X0 Xs))
-	    (== Z (cons X0 Zs))
-	    (appendo Xs Y Zs)))))
+  (lambda (e)
+    (lambda ()
+      ((fresh
+	 (X0 Xs Zs)
+	 (conde ((== X ())
+		 (== Y Z))
+		((== X (cons X0 Xs))
+		 (== Z (cons X0 Zs))
+		 (appendo Xs Y Zs)))) e))))
 
 (run () (A B) (appendo A B '(a b c d e)))
 (run 5 (A B C) (appendo A B C))
 
-(defun (conso A D C)
-  (== C (cons A D)))
-
-(defun (caro C A)
-  (fresh (D) (conso A D C)))
-
-(defun (cdro C D)
-  (fresh (A) (conso A D C)))
+(defun (conso A D C) (== C (cons A D)))
+(defun (caro C A) (fresh (D) (conso A D C)))
+(defun (cdro C D) (fresh (A) (conso A D C)))
 
 (defun (suffix P L)
-  (conde ((== P L))
-	 ((fresh (L1)
-		 (cdro L L1)
-		 (suffix P L1)))))
+  (lambda (e)
+    (lambda ()
+      ((conde ((== P L))
+	      ((fresh (L1)
+		      (cdro L L1)
+		      (suffix P L1)))) e))))
 
 (defun (prefix P L)
-  (conde ((== P ()))
-	 ((fresh (X R1 R2)
-		 (conso X R1 P)
-		 (conso X R2 L)
-		 (prefix R1 R2)))))
+  (lambda (e)
+    (lambda ()
+      ((conde ((== P ()))
+	      ((fresh (X R1 R2)
+		      (conso X R1 P)
+		      (conso X R2 L)
+		      (prefix R1 R2)))) e))))
 
 (run () Q (prefix Q '(a b c d)))
 (run () Q (suffix Q '(a b c d)))
 
 (defun (proper-listo L)
-  (conde ((== L ()))
-	 ((fresh (X Xs)
-		 (conso X Xs L)
-		 (proper-listo Xs)))))
+  (lambda (e)
+    (lambda ()
+      ((conde ((== L ()))
+	      ((fresh (X Xs)
+		      (conso X Xs L)
+		      (proper-listo Xs)))) e))))
 
 (run 5 Q (proper-listo Q))
 (run () Q (proper-listo (cons Q 'x)))
+
+(defun (evalo E R)
+  (lambda (env)
+    (lambda ()
+      ((conde
+	 ((== E t) (== R t))
+	 ((== E ()) (== R ()))
+	 ((== E (` quote , R)))
+	 ((fresh (A A` B B`)
+		 (== E (` cons , A , B))
+		 (== R (cons A` B`))
+		 (evalo A A`)
+		 (evalo B B`)))
+	 ((fresh (X X`)
+		 (== E (` car , X))
+		 (caro X` R)
+		 (evalo X X`)))
+	 ((fresh (X X`)
+		 (== E (` cdr , X))
+		 (cdro X` R)
+		 (evalo X X`)))) env))))
+
+(run 5 Q (evalo Q '(a b c)))

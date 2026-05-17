@@ -49,13 +49,13 @@
 
 ; Reification
 
-(defun (reify x)
+(defun (reifier x)
   (lambda (s)
     (let ((x (lookup x s)))
       (cond ((var? x) x)
 	    ((atom x) x)
-	    (t (cons ((reify (car x)) s)
-		     ((reify (cdr x)) s)))))))
+	    (t (cons ((reifier (car x)) s)
+		     ((reifier (cdr x)) s)))))))
 
 
 ; Interface
@@ -72,10 +72,10 @@
   (` let , (map (lambda (v) (` , v (var (quote , v)))) vars)
      , ((chain 'conj) body)))
 
-(defmacro (run vars body)
-  (if (atom vars)
-    (` fresh (, vars) (map (reify , vars) (, body '(()))))
-    (` fresh , vars (map (reify (list ,. vars)) (, body '(()))))))
+(defmacro (run q g)
+  (` fresh , (if (atom q) (list q) q)
+     (map (reifier , (if (atom q) q (cons 'list q)))
+	  (, g '()))))
 
 
 ; Example
