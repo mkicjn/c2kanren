@@ -2,6 +2,8 @@
 ; (Obviously, credit to https://github.com/miniKanren/sokuza-kanren.git)
 
 ; Also added streams and `occurs` check, to make it more like μKanren
+; TODO: "birth record" optimization for `walk`
+; TODO: disequality constraint `=/=`
 
 
 ; Streams
@@ -30,34 +32,54 @@
 
 ; Variables
 
-(defun (var x)
-  (cons '_ x))
+(defun (var x) (cons '_ x))
+
+(defun (_) (var ()))
 
 (defun (var? x)
   (if (not (atom x))
     (eq (car x) '_)))
 
 
+; Constraint Sets
+
+(defun (bind s v c)
+  (cons (cons s v) c))
+
+(defun (unbind s c)
+  (cond ((not c) ())
+	((eq s (caar c)) (unbind s (cdr c)))
+	(t (cons (car c) (unbind s (cdr c))))))
+
+(defun (meta-get s c)
+  (cdr (assoc s c)))
+
+(defun (meta-set s v c)
+  (cons (cons s v) (unbind s c)))
+
+
 ; Unification
 
-(defun (lookup k c)
-  (if (not (var? k)) k
-    (let ((v (assoc k c)))
-      (if (not v) k (lookup (cdr v) c)))))
+(defun (get== k c)
+  (let ((s (meta-get '== c)))
+    (if (not (var? k)) k
+      (let ((v (assoc k s)))
+	(if (not v) k (get== (cdr v) c))))))
 
 (defun (occurs v x c)
   (cond ((eq v x) t)
 	((atom x) ())
-	(t (if (occurs v (lookup (car x) c) c) t
-	     (occurs v (lookup (cdr x) c) c)))))
+	(t (if (occurs v (get== (car x) c) c) t
+	     (occurs v (get== (cdr x) c) c)))))
 
 (defun (set== x y c)
-  (if (occurs x y c) '#f
-    (cons (cons x y) c)))
+  (let ((s (meta-get '== c)))
+    (if (occurs x y c) '#f
+      (meta-set '== (bind x y s) c))))
 
 (defun (unify x y c)
-  (let ((x (lookup x c))
-	(y (lookup y c)))
+  (let ((x (get== x c))
+	(y (get== y c)))
     (cond ((eq x y) c)
 	  ((var? x) (set== x y c))
 	  ((var? y) (set== y x c))
@@ -68,9 +90,9 @@
 		 (unify (cdr x) (cdr y) c)))))))
 
 (defun (== x y)
-  (lambda (s)
-    (let ((s (unify x y s)))
-      (if (eq s '#f) () (list s)))))
+  (lambda (c)
+    (let ((c (unify x y c)))
+      (if (eq c '#f) () (list c)))))
 
 
 ; Connectives
@@ -88,7 +110,7 @@
 
 (defun (reifier x)
   (lambda (c)
-    (let ((x (lookup x c)))
+    (let ((x (get== x c)))
       (cond ((var? x) x)
 	    ((atom x) x)
 	    (t (cons ((reifier (car x)) c)
@@ -130,7 +152,8 @@
 		      (conso A sBs AsBs)
 		      (appendo s Bs sBs)))) c))))
 
-(run 6 A (fresh (B) (appendo A B '(a b c d e))))
+(run 6 A (appendo A (_) '(a b c d e)))
+(run 6 A (appendo (_) A '(a b c d e)))
 (run 6 (A B) (appendo A B '(a b c d e)))
 (run 6 (A B C) (appendo A B C))
 (run () A (appendo A A '(a b c a b c)))
