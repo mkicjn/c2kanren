@@ -72,11 +72,10 @@
   (` let , (map (lambda (v) (` , v (var (quote , v)))) vars)
      , ((chain 'conj) body)))
 
-(defmacro (run q g)
+(defmacro (run n q . gs)
   (` fresh , (if (atom q) (list q) q)
      (map (reifier , (if (atom q) q (cons 'list q)))
-	  (, g '()))))
-
+	  (take , n (, ((chain 'conj) gs) '())))))
 
 ; Example
 

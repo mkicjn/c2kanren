@@ -51,6 +51,12 @@
 	((eq s (caar c)) (unbind s (cdr c)))
 	(t (cons (car c) (unbind s (cdr c))))))
 
+(defun (bound x v l)
+  (cond ((atom l) ())
+	((and (eq x (caar l))
+	      (eq v (cdar l))) t)
+	(t (bound x v (cdr l)))))
+
 (defun (meta-get s c)
   (cdr (assoc s c)))
 
@@ -61,9 +67,9 @@
 ; Unification
 
 (defun (get== k c)
-  (let ((s (meta-get '== c)))
+  (let ((e (meta-get '== c)))
     (if (not (var? k)) k
-      (let ((v (assoc k s)))
+      (let ((v (assoc k e)))
 	(if (not v) k (get== (cdr v) c))))))
 
 (defun (occurs v x c)
@@ -73,9 +79,10 @@
 	     (occurs v (get== (cdr x) c) c)))))
 
 (defun (set== x y c)
-  (let ((s (meta-get '== c)))
-    (if (occurs x y c) '#f
-      (meta-set '== (bind x y s) c))))
+  (let ((e (meta-get '== c)))
+    (cond ((occurs x y c) '#f)
+	  ((==-violates-=/= x y c) '#f)
+	  (t (meta-set '== (bind x y e) c)))))
 
 (defun (unify x y c)
   (let ((x (get== x c))
@@ -106,6 +113,36 @@
     (stream-map g2 (g1 c))))
 
 
+; Disequality Constraint
+; TODO: Reification of constraints
+
+(defun (-suffix l s)
+  (cond
+    ((not l) ())
+    ((eq l s) ())
+    (t (cons (car l) (-suffix (cdr l) s)))))
+
+(defun (disunify x y c)
+  (let* ((e (meta-get '== c))
+	 (c2 (unify x y c))
+	 (e2 (if (eq c2 '#f) '#f (meta-get '== c2)))
+	 (p  (if (eq c2 '#f) '#f (-suffix e2 e))))
+    (cond ((eq c2 '#f) c)
+	  ((eq p ()) '#f)
+	  (t (let* ((d (meta-get '=/= c))
+		    (d2 (append p d)))
+	       (meta-set '=/= d2 c))))))
+
+(defun (==-violates-=/= x v c)
+  (let ((d (meta-get '=/= c)))
+    (bound x v d)))
+
+(defun (=/= x y)
+  (lambda (c)
+    (let ((c (disunify x y c)))
+      (if (eq c '#f) () (list c)))))
+
+
 ; Reification
 
 (defun (reifier x)
@@ -131,10 +168,10 @@
   (` let , (map (lambda (v) (` , v (var (quote , v)))) vars)
      , ((chain 'conj) body)))
 
-(defmacro (run n q g)
+(defmacro (run n q . gs)
   (` fresh , (if (atom q) (list q) q)
      (map (reifier , (if (atom q) q (cons 'list q)))
-	  (take , n (, g '())))))
+	  (take , n (, ((chain 'conj) gs) '())))))
 
 
 ; Examples
@@ -150,7 +187,8 @@
 	      ((fresh (A s sBs)
 		      (conso A s As)
 		      (conso A sBs AsBs)
-		      (appendo s Bs sBs)))) c))))
+		      (appendo s Bs sBs))))
+       c))))
 
 (run 6 A (appendo A (_) '(a b c d e)))
 (run 6 A (appendo (_) A '(a b c d e)))
@@ -178,6 +216,22 @@
 	 ((fresh (X X`)
 		 (== E (` cdr , X))
 		 (cdro X` R)
-		 (evalo X X`)))) c))))
+		 (evalo X X`))))
+       c))))
 
 (run 5 Q (evalo Q '(a b c)))
+
+
+(defun (membero X L)
+  (lambda (c)
+    (lambda ()
+      ((conde ((== L (cons X (_))))
+	      ((fresh (Ls)
+		      (== L (cons (_) Ls))
+		      (membero X Ls))))
+       c))))
+
+(run () Q (=/= Q 'a) (disj (== Q 'a) (== Q 'b)))
+(run () Q (disj (== Q 'a) (== Q 'd)) (=/= Q 'a))
+
+(run () A (=/= A 'b) (=/= A 'd) (membero A '(a b c d e)))

@@ -362,10 +362,10 @@
 
 ; Both annoyances are remedied simultaneously with a macro called `run`.
 
-(defmacro (run n q g)
+(defmacro (run q g)
   (` fresh , (if (atom q) (list q) q)
      (map (reifier , (if (atom q) q (cons 'list q)))
-	  (take , n (, g '())))))
+	  (, g '()))))
 
 (test (run () Q (conde ((== Q 5)) ((== Q 6) (== Q 7)) ((== Q 8))))
       (5 8))
