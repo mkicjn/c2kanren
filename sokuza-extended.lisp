@@ -1,6 +1,8 @@
 ; Sokuza-Kanren style implementation
 ; (Obviously, credit to https://github.com/miniKanren/sokuza-kanren.git)
-; With streams, to make it more like μKanren
+
+; Also added streams and `occurs` check, to make it more like μKanren
+
 
 ; Streams
 
@@ -38,22 +40,32 @@
 
 ; Unification
 
-(defun (lookup k env)
+(defun (lookup k c)
   (if (not (var? k)) k
-    (let ((v (assoc k env)))
-      (if (not v) k (lookup (cdr v) env)))))
+    (let ((v (assoc k c)))
+      (if (not v) k (lookup (cdr v) c)))))
 
-(defun (unify x y env)
-  (let ((x (lookup x env))
-	(y (lookup y env)))
-    (cond ((eq x y) env)
-	  ((var? x) (cons (cons x y) env))
-	  ((var? y) (cons (cons y x) env))
+(defun (occurs v x c)
+  (cond ((eq v x) t)
+	((atom x) ())
+	(t (if (occurs v (lookup (car x) c) c) t
+	     (occurs v (lookup (cdr x) c) c)))))
+
+(defun (set== x y c)
+  (if (occurs x y c) '#f
+    (cons (cons x y) c)))
+
+(defun (unify x y c)
+  (let ((x (lookup x c))
+	(y (lookup y c)))
+    (cond ((eq x y) c)
+	  ((var? x) (set== x y c))
+	  ((var? y) (set== y x c))
 	  ((atom x) '#f)
 	  ((atom y) '#f)
-	  (t (let ((env (unify (car x) (car y) env)))
-	       (if (eq env '#f) '#f
-		 (unify (cdr x) (cdr y) env)))))))
+	  (t (let ((c (unify (car x) (car y) c)))
+	       (if (eq c '#f) '#f
+		 (unify (cdr x) (cdr y) c)))))))
 
 (defun (== x y)
   (lambda (s)
@@ -64,23 +76,23 @@
 ; Connectives
 
 (defun (disj g1 g2)
-  (lambda (s)
-    (stream-join (g1 s) (g2 s))))
+  (lambda (c)
+    (stream-join (g1 c) (g2 c))))
 
 (defun (conj g1 g2)
-  (lambda (s)
-    (stream-map g2 (g1 s))))
+  (lambda (c)
+    (stream-map g2 (g1 c))))
 
 
 ; Reification
 
 (defun (reifier x)
-  (lambda (s)
-    (let ((x (lookup x s)))
+  (lambda (c)
+    (let ((x (lookup x c)))
       (cond ((var? x) x)
 	    ((atom x) x)
-	    (t (cons ((reifier (car x)) s)
-		     ((reifier (cdr x)) s)))))))
+	    (t (cons ((reifier (car x)) c)
+		     ((reifier (cdr x)) c)))))))
 
 
 ; Interface
@@ -110,13 +122,13 @@
 (defun (cdro C D) (fresh (A) (conso A D C)))
 
 (defun (appendo As Bs AsBs)
-  (lambda (env)
+  (lambda (c)
     (lambda ()
       ((conde ((== As ()) (== Bs AsBs))
 	      ((fresh (A s sBs)
 		      (conso A s As)
 		      (conso A sBs AsBs)
-		      (appendo s Bs sBs)))) env))))
+		      (appendo s Bs sBs)))) c))))
 
 (run 6 A (fresh (B) (appendo A B '(a b c d e))))
 (run 6 (A B) (appendo A B '(a b c d e)))
@@ -125,7 +137,7 @@
 
 
 (defun (evalo E R)
-  (lambda (env)
+  (lambda (c)
     (lambda ()
       ((conde
 	 ((== E t) (== R t))
@@ -143,6 +155,6 @@
 	 ((fresh (X X`)
 		 (== E (` cdr , X))
 		 (cdro X` R)
-		 (evalo X X`)))) env))))
+		 (evalo X X`)))) c))))
 
 (run 5 Q (evalo Q '(a b c)))
