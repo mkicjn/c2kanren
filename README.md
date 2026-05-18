@@ -7,6 +7,8 @@ build from an imperative language (C), to a functional language (Lisp), to a log
 The `c2klisp` interpreter herein is <500 SLOC, but remains powerful enough to meaningfully host its own port of μKanren (also included).
 Central to this ability are its guarantees of tail-call optimization (TCO) and aggressive garbage collection (GC).
 
+***NOTE: Some of the below information (especially about the μKanren port) is out of date due to recent work in progress.***
+
 The main files:
 * `c2klisp.c` - a simple Lisp interpreter with the optimizations described above
 * `rc.lisp` - a "run commands" style script executed by the interpreter automatically; contains important macro definitions

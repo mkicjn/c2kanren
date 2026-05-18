@@ -205,27 +205,3 @@ appendo
 ; (Repeated with quotes just to make ukanren_demo.sh show some extra info)
 '(run 5 (a b l) (appendo a b l))
 (run 5 (a b l) (appendo a b l))
-
-
-'***
-; Partial relational interpreter - WIP
-(define evalo
-  (relation (env i o)
-    (conde
-      ((== i t) (== o t))
-      ((== i ()) (== o ()))
-      ((== (` quote , o) i))
-      ((fresh (a b) (== i (` cons , a , b)) (== o (cons a b))))
-      ((fresh (x y z) (== i (` car , x)) (evalo env x y) (== y (cons o z))))
-      ((fresh (x y z) (== i (` cdr , x)) (evalo env x y) (== y (cons z o))))
-      ((fresh (x y z) (== i (` eq , x , y))
-	      (conde ((== o t) (evalo env x z) (evalo env y z))
-		     ((== o ()))
-		     )))
-      )))
-
-(run 10 (x) (evalo () x '(a b)))
-
-(run 10 (x y) (evalo () (` eq , x , y) t))
-; ^ TODO: Why does this not work, but the below does???
-(run 10 (e x y) (conj (== e 'eq) (evalo () (` eq , x , y) t)))

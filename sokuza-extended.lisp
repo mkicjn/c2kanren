@@ -204,11 +204,6 @@
 	 ((== E t) (== R t))
 	 ((== E ()) (== R ()))
 	 ((== E (` quote , R)))
-	 ((fresh (A A` B B`)
-		 (== E (` cons , A , B))
-		 (== R (cons A` B`))
-		 (evalo A A`)
-		 (evalo B B`)))
 	 ((fresh (X X`)
 		 (== E (` car , X))
 		 (caro X` R)
@@ -216,11 +211,24 @@
 	 ((fresh (X X`)
 		 (== E (` cdr , X))
 		 (cdro X` R)
-		 (evalo X X`))))
+		 (evalo X X`)))
+	 ((fresh (A A` B B`)
+		 (== E (` cons , A , B))
+		 (== R (cons A` B`))
+		 (evalo A A`)
+		 (evalo B B`)))
+	 ((fresh (X Y X` Y`)
+		 (== E (` eq , X , Y))
+		 (conde ((== R ()) (=/= X` Y`))
+			((== R  t) (==  X` Y`)))
+		 (evalo X X`)
+		 (evalo Y Y`))))
        c))))
 
 (run 5 Q (evalo Q '(a b c)))
-
+(run 1 Q (evalo '(eq t t) Q))
+; ^ TODO: Fix bug - ==-violates-=/= doesn't work in this case
+; It only checks for (=/= (X` . Y`)) and fails because (== (X` . t) (Y` . t)) instead
 
 (defun (membero X L)
   (lambda (c)
