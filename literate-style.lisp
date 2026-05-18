@@ -136,12 +136,21 @@
 (defun (alternate s1 s2)
   (cond ((atom s1) s2)
 	((function? s1) (lambda () (alternate s2 (s1))))
-	(t (cons (car s1) (alternate (cdr s1) s2)))))
+	(t (cons (car s1) (alternate s2 (cdr s1))))))
 
 (test (take 10 (alternate (seq 100 200) (seq 200 300)))
       (100 200 101 201 102 202 103 203 104 204))
 
 ; Looks promising!
+
+; To allow adjust-stream to work on functions that return streams, rather than just lists,
+; we can repeat the same trick using `concatenate` or `alternate` instead of `append`.
+(defun (adjust-stream s f)
+  ; Same as `map-stream`
+  (cond ((atom s) ())
+	((function? s) (lambda () (adjust-stream (s) f)))
+	; But alternate the results from f, which should return a (possibly empty) list of results.
+	(t (append (f (car s)) (adjust-stream (cdr s) f)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

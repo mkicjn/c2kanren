@@ -27,7 +27,7 @@
 (defun (stream-map g s)
   (cond ((not s) ())
 	((functionp s) (lambda () (stream-map g (s))))
-	(t (append (g (car s)) (stream-map g (cdr s))))))
+	(t (stream-join (g (car s)) (stream-map g (cdr s))))))
 
 
 ; Variables
@@ -50,12 +50,6 @@
   (cond ((not c) ())
 	((eq s (caar c)) (unbind s (cdr c)))
 	(t (cons (car c) (unbind s (cdr c))))))
-
-(defun (bound x v l)
-  (cond ((atom l) ())
-	((and (eq x (caar l))
-	      (eq v (cdar l))) t)
-	(t (bound x v (cdr l)))))
 
 (defun (meta-get s c)
   (cdr (assoc s c)))
@@ -80,9 +74,8 @@
 
 (defun (set== x y c)
   (let ((e (meta-get '== c)))
-    (cond ((occurs x y c) '#f)
-	  ((==-violates-=/= x y c) '#f)
-	  (t (meta-set '== (bind x y e) c)))))
+    (if (occurs x y c) '#f
+      (propagate=/= x y (meta-set '== (bind x y e) c)))))
 
 (defun (unify x y c)
   (let ((x (get== x c))
@@ -133,14 +126,20 @@
 		    (d2 (append p d)))
 	       (meta-set '=/= d2 c))))))
 
-(defun (==-violates-=/= x v c)
-  (let ((d (meta-get '=/= c)))
-    (bound x v d)))
-
 (defun (=/= x y)
   (lambda (c)
     (let ((c (disunify x y c)))
       (if (eq c '#f) () (list c)))))
+
+(defun (propagate=/= x v c)
+  ((Z (lambda (f)
+	(lambda (d c)
+	  (cond ((not d) c)
+		((eq c '#f) '#f)
+		((eq (caar d) x)
+		 (f (cdr d) (disunify v (cdar d) c)))
+		(t (f (cdr d) c))))))
+   (meta-get '=/= c) c))
 
 
 ; Reification
@@ -226,9 +225,8 @@
        c))))
 
 (run 5 Q (evalo Q '(a b c)))
-(run 1 Q (evalo '(eq t t) Q))
-; ^ TODO: Fix bug - ==-violates-=/= doesn't work in this case
-; It only checks for (=/= (X` . Y`)) and fails because (== (X` . t) (Y` . t)) instead
+(run 10 Q (evalo (` eq t (_)) Q))
+
 
 (defun (membero X L)
   (lambda (c)
