@@ -24,16 +24,16 @@
     (cond ((eq x y) env)
 	  ((var? x) (cons (cons x y) env))
 	  ((var? y) (cons (cons y x) env))
-	  ((atom x) '#f)
-	  ((atom y) '#f)
+	  ((atom x) 'fail)
+	  ((atom y) 'fail)
 	  (t (let ((env (unify (car x) (car y) env)))
-	       (if (eq env '#f) '#f
+	       (if (eq env 'fail) 'fail
 		 (unify (cdr x) (cdr y) env)))))))
 
 (defun (== x y)
   (lambda (s)
     (let ((s (unify x y s)))
-      (if (eq s '#f) () (list s)))))
+      (if (eq s 'fail) () (list s)))))
 
 
 ; Connectives

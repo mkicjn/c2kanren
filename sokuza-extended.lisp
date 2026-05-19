@@ -1,9 +1,13 @@
 ; Sokuza-Kanren style implementation
-; (Obviously, credit to https://github.com/miniKanren/sokuza-kanren.git)
+; With extensions:
+; * Streams
+; * "Occurs" check
+; * Disequality constraints
 
-; Also added streams and `occurs` check, to make it more like μKanren
-; TODO: "birth record" optimization for `walk`
-; TODO: disequality constraint `=/=`
+; Credits:
+; https://github.com/miniKanren/sokuza-kanren.git
+; http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+; https://github.com/webyrd/dissertation-single-spaced
 
 
 ; Streams
@@ -57,42 +61,47 @@
 (defun (meta-set s v c)
   (cons (cons s v) (unbind s c)))
 
+(defun (cfold c l f)
+  (cond ((not l) c)
+	((eq c 'fail) 'fail)
+	(t (cfold (f c (car l)) (cdr l) f))))
+
 
 ; Unification
 
-(defun (get== k c)
+(defun (walk k c)
   (let ((e (meta-get '== c)))
     (if (not (var? k)) k
       (let ((v (assoc k e)))
-	(if (not v) k (get== (cdr v) c))))))
+	(if (not v) k (walk (cdr v) c))))))
 
 (defun (occurs v x c)
   (cond ((eq v x) t)
 	((atom x) ())
-	(t (if (occurs v (get== (car x) c) c) t
-	     (occurs v (get== (cdr x) c) c)))))
+	(t (if (occurs v (walk (car x) c) c) t
+	     (occurs v (walk (cdr x) c) c)))))
 
-(defun (set== x y c)
+(defun (ext-== x y c)
   (let ((e (meta-get '== c)))
-    (if (occurs x y c) '#f
-      (propagate=/= x y (meta-set '== (bind x y e) c)))))
+    (if (occurs x y c) 'fail
+      (==->=/= x y (meta-set '== (bind x y e) c)))))
 
 (defun (unify x y c)
-  (let ((x (get== x c))
-	(y (get== y c)))
+  (let ((x (walk x c))
+	(y (walk y c)))
     (cond ((eq x y) c)
-	  ((var? x) (set== x y c))
-	  ((var? y) (set== y x c))
-	  ((atom x) '#f)
-	  ((atom y) '#f)
+	  ((var? x) (ext-== x y c))
+	  ((var? y) (ext-== y x c))
+	  ((atom x) 'fail)
+	  ((atom y) 'fail)
 	  (t (let ((c (unify (car x) (car y) c)))
-	       (if (eq c '#f) '#f
+	       (if (eq c 'fail) 'fail
 		 (unify (cdr x) (cdr y) c)))))))
 
 (defun (== x y)
   (lambda (c)
     (let ((c (unify x y c)))
-      (if (eq c '#f) () (list c)))))
+      (if (eq c 'fail) () (list c)))))
 
 
 ; Connectives
@@ -116,37 +125,34 @@
     (t (cons (car l) (-suffix (cdr l) s)))))
 
 (defun (disunify x y c)
-  (let* ((e (meta-get '== c))
-	 (c2 (unify x y c))
-	 (e2 (if (eq c2 '#f) '#f (meta-get '== c2)))
-	 (p  (if (eq c2 '#f) '#f (-suffix e2 e))))
-    (cond ((eq c2 '#f) c)
-	  ((eq p ()) '#f)
-	  (t (let* ((d (meta-get '=/= c))
-		    (d2 (append p d)))
-	       (meta-set '=/= d2 c))))))
+  (let ((e (meta-get '== c))
+	(d (meta-get '=/= c))
+	(c2 (unify x y c)))
+    (if (eq c2 'fail) c
+      (let* ((e2 (meta-get '== c2))
+	     (p (-suffix e2 e))
+	     (d2 (append p d)))
+	(if (eq p ()) 'fail
+	  (meta-set '=/= d2 c))))))
 
 (defun (=/= x y)
   (lambda (c)
     (let ((c (disunify x y c)))
-      (if (eq c '#f) () (list c)))))
+      (if (eq c 'fail) () (list c)))))
 
-(defun (propagate=/= x v c)
-  ((Z (lambda (f)
-	(lambda (d c)
-	  (cond ((not d) c)
-		((eq c '#f) '#f)
-		((eq (caar d) x)
-		 (f (cdr d) (disunify v (cdar d) c)))
-		(t (f (cdr d) c))))))
-   (meta-get '=/= c) c))
+(defun (==->=/= x v c)
+  (cfold c (meta-get '=/= c)
+	 (lambda (c b)
+	   (if (eq (car b) x)
+	     (disunify v (cdr b) c)
+	     c))))
 
 
 ; Reification
 
 (defun (reifier x)
   (lambda (c)
-    (let ((x (get== x c)))
+    (let ((x (walk x c)))
       (cond ((var? x) x)
 	    ((atom x) x)
 	    (t (cons ((reifier (car x)) c)
