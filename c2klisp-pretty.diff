@@ -1,0 +1,46 @@
+--- c2klisp-pretty.c	2026-05-19 19:24:30.880431750 -0500
++++ c2klisp-pretty.c	2026-05-19 19:24:43.718373597 -0500
+@@ -139,8 +139,9 @@
+ #define WRAP(x) cons(NUMBER, (void *)(x))
+ 
+ // Value printing
+-void print(void *x)
++void printl(void *x, int space, int level)
+ {
++	printf("%*s", space, "");
+ 	if (!x) {
+ 		printf("()");
+ 	} else if (IN(x, cells)) {
+@@ -150,16 +151,16 @@
+ 		}
+ 		// For lists, first print the head
+ 		printf("(");
+-		print(car(x));
++		printl(car(x), 0, level + 1);
+ 		// Then print successive elements until encountering NIL or atom
+ 		for (x = cdr(x); !atom(x); x = cdr(x)) {
+-			printf(" ");
+-			print(car(x));
++			printf("\n");
++			printl(car(x), level + 1, level + 1);
+ 		}
+ 		// If encountering an atom, print with dot notation
+ 		if (x) {
+ 			printf(" . ");
+-			print(x);
++			printl(x, 0, level + 3);
+ 		}
+ 		printf(")");
+ 	} else if (IN(x, syms)) {
+@@ -175,6 +176,11 @@
+ 	}
+ }
+ 
++void print(void *x)
++{
++	printl(x, 0, 0);
++}
++
+ 
+ // **************** Parser ****************
+ 
