@@ -9,6 +9,8 @@
 ; http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
 ; https://github.com/webyrd/dissertation-single-spaced
 
+; TODO: Reification of constraints
+
 
 ; Streams
 
@@ -45,7 +47,7 @@
     (eq (car x) '_)))
 
 
-; Constraint Sets
+; Constraint Stores
 
 (defun (bind s v c)
   (cons (cons s v) c))
@@ -55,22 +57,22 @@
 	((eq s (caar c)) (unbind s (cdr c)))
 	(t (cons (car c) (unbind s (cdr c))))))
 
-(defun (meta-get s c)
+(defun (get-constraints c s)
   (cdr (assoc s c)))
 
-(defun (meta-set s v c)
-  (cons (cons s v) (unbind s c)))
+(defun (set-constraints c s l)
+  (cons (cons s l) (unbind s c)))
 
-(defun (cfold c l f)
+(defun (propagate f c l)
   (cond ((not l) c)
 	((eq c 'fail) 'fail)
-	(t (cfold (f c (car l)) (cdr l) f))))
+	(t (propagate f (f c (car l)) (cdr l)))))
 
 
 ; Unification
 
 (defun (walk k c)
-  (let ((e (meta-get '== c)))
+  (let ((e (get-constraints c '==)))
     (if (not (var? k)) k
       (let ((v (assoc k e)))
 	(if (not v) k (walk (cdr v) c))))))
@@ -82,9 +84,9 @@
 	     (occurs v (walk (cdr x) c) c)))))
 
 (defun (ext-== x y c)
-  (let ((e (meta-get '== c)))
+  (let ((e (get-constraints c '==)))
     (if (occurs x y c) 'fail
-      (==->=/= x y (meta-set '== (bind x y e) c)))))
+      (==->=/= x y (set-constraints c '== (bind x y e))))))
 
 (defun (unify x y c)
   (let ((x (walk x c))
@@ -115,25 +117,24 @@
     (stream-map g2 (g1 c))))
 
 
-; Disequality Constraint
-; TODO: Reification of constraints
+; Disequality Constraints
 
-(defun (-suffix l s)
+(defun (diff l1 l2)
   (cond
-    ((not l) ())
-    ((eq l s) ())
-    (t (cons (car l) (-suffix (cdr l) s)))))
+    ((not l2) ())
+    ((eq l2 l1) ())
+    (t (cons (car l2) (diff l1 (cdr l2))))))
 
 (defun (disunify x y c)
-  (let ((e (meta-get '== c))
-	(d (meta-get '=/= c))
+  (let ((e (get-constraints c '==))
+	(d (get-constraints c '=/=))
 	(c2 (unify x y c)))
     (if (eq c2 'fail) c
-      (let* ((e2 (meta-get '== c2))
-	     (p (-suffix e2 e))
+      (let* ((e2 (get-constraints c2 '==))
+	     (p (diff e e2))
 	     (d2 (append p d)))
 	(if (eq p ()) 'fail
-	  (meta-set '=/= d2 c))))))
+	  (set-constraints c '=/= d2))))))
 
 (defun (=/= x y)
   (lambda (c)
@@ -141,11 +142,12 @@
       (if (eq c 'fail) () (list c)))))
 
 (defun (==->=/= x v c)
-  (cfold c (meta-get '=/= c)
-	 (lambda (c b)
-	   (if (eq (car b) x)
-	     (disunify v (cdr b) c)
-	     c))))
+  (propagate
+    (lambda (c b)
+      (if (eq (car b) x)
+	(disunify v (cdr b) c)
+	c))
+    c (get-constraints c '=/=)))
 
 
 ; Reification
