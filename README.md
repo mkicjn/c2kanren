@@ -1,24 +1,34 @@
 # c2kanren
-**A very small hackable Lisp interpreter in C, with its own port of μKanren**
+**A very small hackable Lisp interpreter in C, with its own miniKanren**
 
 This project was inspired by a number of sources, and it does what it says on the tin:
-build from an imperative language (C), to a functional language (Lisp), to a logic programming language (μKanren).
+build from an imperative language (C), to a functional language (Lisp), to a relational language (miniKanren).
 
-The `c2klisp` interpreter herein is <500 SLOC, but remains powerful enough to meaningfully host its own port of μKanren (also included).
+The `c2klisp` interpreter herein is <500 SLOC, but remains powerful enough to meaningfully host miniKanren.
 Central to this ability are its guarantees of tail-call optimization (TCO) and aggressive garbage collection (GC).
 
-***NOTE: Some of the below information (especially about the μKanren port) is out of date due to recent work in progress.***
+The most powerful miniKanren port included here corresponds to the core miniKanren with disequality constraints.
+
+Additionally, a few earlier versions are included as examples to demonstrate the feature set progression from sokuza-kanren,
+as well as a version corresponding to μKanren written in a more instructive "literate" style, with unit tests.
 
 The main files:
 * `c2klisp.c` - a simple Lisp interpreter with the optimizations described above
 * `rc.lisp` - a "run commands" style script executed by the interpreter automatically; contains important macro definitions
-* `ukanren.lisp` - a port of μKanren to that Lisp, including ergonomic macros and support for reification
+* `literate-ukanren.lisp` - a μKanren-like port for that Lisp, written in a literate style with unit tests to introduce streams, unification, and goals in a (hopefully natural) progression
+* `sokuza-kanren.lisp` - a port of sokuza-kanren, for simplicity
+* `ukanren.lisp` - above, but extended with streams to approximate μKanren
+* `minikanren.lisp` - above, but extended with disequality constraints to approximate miniKanren
+* `demo.sh` - a script that runs all of the above \*Kanren ports in succession
 
-To see it work, simply clone the repo and run `./ukanren_demo.sh`.
-This compiles the interpreter and runs each of the μKanren ports, demonstrating the canonical `appendo` relation both in the cliche manner and using the most general query.
-The first of these also displays each input expression before its result for reference.
+To see it work, simply clone the repo and run `./demo.sh`.
+Requires only `make` and a C compiler. (If `tcc` is available, it will be used with `-run`.)
 
-## The Lisp
+When `literate-ukanren.lisp` is executed, a sequence of `t`s will indicate unit test successes, followed by several demonstrations.
+The other ports only include various demonstrations.
+
+
+## Details re: Lisp Interpreter & Dialect
 
 The Lisp interpreter here isn't particularly fast, but what's important is that it is small and simple while retaining the optimizations necessary to make deeply-recursive closures usable.
 Initially, the goal was to keep it simple enough that it could be ported into even lower level languages, such as my main project language, [paraforth](https://github.com/mkicjn/paraforth).
@@ -58,30 +68,5 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Macros are implemented via a hook in the form of the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
   * The version of `expand` provided by `rc.lisp` works by applying rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
 
-## The Kanren
-
-The uKanren port is patterned mostly after a talk by its creators, and also using the original paper as a reference occasionally.
-The original work that followed that talk a little more closely was in `ukanren-old.lisp` (see the `old-interpreters` branch), and has tons of code commented out where things were being tested and updated.
-I figured it might be useful to keep that old body of code around as a reference, but the two versions present now are probably much better to read and use.
-The code in `ukanren-annotated.lisp` is a cleaned up and _very, very heavily_ commented version of `ukanren-old.lisp` originally produced to help decipher some of the complexity.
-
-Meanwhile, the code in `ukanren.lisp` is the latest iteration, which uses no numeric types at all in its implementation (except at the very end, just to limit the number of results from `run`).
-That means no numbers as variables, and no threading a counter through with all the substitutions.
-Instead, variables are formed by cons pairs to ensure uniqueness, and as such, only the pointer comparison operator `eq` is used to compare them.
-
-This was originally so that the interpreter can be pared down and have math support removed, if desired.
-(This is very easy to do, and `ukanren.lisp` will essentially still work - try applying `c2kanren-min.diff`.)
-
-Personally, I think it also makes the implementation easier to understand, since it's another moving part removed - one which was initially rather confusing to me, as well.
-It also provides some additional flexibility, since numbers are no longer assumed to be variables, and variables can carry arbitrary data with them in their `cdr`.
-Logic variables are identified by being a list and having an underscore symbol `_` at the head, but the rest of the list is never inspected.
-The usefulness of this is probably debatable, but it is at least used to identify variables from `run`(`*`) for when they appear in a reified result.
-
-Summary of current features:
-* The usual `==`/`conj`/`disj`/`fresh`/`conde`
-  * `conj` and `disj` are variadic (like `conj+` and `disj+` in the paper)
-  * `fresh` can take multiple arguments and multiple body expressions (adds a `conj`)
-* Support for `run` and `run*`, both with reification
-* Inverse-η-delayed relations with `relation` (works like `lambda`)
-* Classic `appendo` example included (demonstrated with `./ukanren_demo.sh`)
-* No arithmetic used by the implementation core
+Many programming examples are available in the `extras/` directory,
+which serves as a dumping ground for other experiments/mini-projects of mine with this interpreter.

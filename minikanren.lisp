@@ -9,6 +9,7 @@
 ; http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
 ; https://github.com/webyrd/dissertation-single-spaced
 
+; TODO: Cleaner relation definitions - no (lambda (c) (lambda () ((...) c)))
 ; TODO: Reification of constraints
 
 
