@@ -35,7 +35,7 @@ Initially, the goal was to keep it simple enough that it could be ported into ev
 That goal has not been completely forgotten, but it _has_ taken the backseat to prioritize getting everything to work well in the first place.
 
 Implementation-wise, the interpreter was originally modeled a bit after SectorLISP and tinylisp, combining interesting aspects of the two with new ideas of my own.
-However, over time (and especially as a result of working through various design challenges), things have strayed away from either two and gotten more original.
+However, over time (and especially as a result of working through various issues), the design has become more original.
 
 Here's a breakdown of the interpreter's design, in general and relative to tinylisp and SectorLisp:
 * Lexerless recursive descent parser with 1 character lookahead - original, but probably similar to either since it's an obvious approach
@@ -58,12 +58,12 @@ Here's a more intensive breakdown of the language from the programmer's perspect
 * Variadicity/argument pasting by dot notation, e.g., `(define curry (lambda (f x) (lambda args (f x . args))))`
 * Syntactic sugar for `'x -> (quote x)` but no built-in backquote-unquote (this is also supported by macros in `rc.lisp`)
 * The semantics of nil are somewhere between CL and Scheme:
-  * Like CL, `()` self-evaluates to the empty list, `(not ())` is `t`, `(car/cdr ())` is `()`, and the empty list is a symbol and the only false value.
+  * Like CL, `()` self-evaluates to the empty list, `(not ())` is `t`, the `car`/`cdr` of `()` is `()`, and the empty list is a symbol and the only false value.
   * HOWEVER: Like Scheme, the name `nil` is not recognized as a representation of the empty list.
-* Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` implies `ptr == NULL`)
+* Primitive names are CL-like, but `null` is dropped in favor of `not` (i.e., a C-like reading where `!ptr` is typically equivalent to `ptr == NULL`)
   * Default names: `t` (for convenience), `()` (or `'()`, incidentally), `atom`, `not`, `eq`
   * Not defined: `#t`, `#f`, `nil`, `atom?`, `null?`, `null`, `eq?`, `else`
-* `let` and `let*` work exactly the same as in either CL or Scheme
+* `let` and `let*` work more-or-less the same as in either CL or Scheme
 * Variadic `and`/`or` as in either CL or Scheme (note: instead of CL's `mod` or Scheme's `modulo`, use the C-like `%`)
 * Macros are implemented via a hook in the form of the `expand` function, which, if `define`d at the global scope, will be applied to each expression read by the interpreter before evaluation.
   * The version of `expand` provided by `rc.lisp` works by applying rules from `defmacro` repeatedly until failure, then recurses over sub-expressions.
