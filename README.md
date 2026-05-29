@@ -28,7 +28,7 @@ When `literate-ukanren.lisp` is executed, a sequence of `t`s will indicate unit 
 The other ports only include various demonstrations.
 
 
-## Details re: Lisp Interpreter & Dialect
+### Lisp Interpreter & Dialect Details
 
 The Lisp interpreter here isn't particularly fast, but what's important is that it is small and simple while retaining the optimizations necessary to make deeply-recursive closures usable.
 Initially, the goal was to keep it simple enough that it could be ported into even lower level languages, such as my main project language, [paraforth](https://github.com/mkicjn/paraforth).
