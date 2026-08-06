@@ -1,4 +1,4 @@
-; Toy term rewriter (WIP)
+; Toy J-Bob style term rewriter (WIP)
 
 (defmacro (let? binds body)
   (if (atom binds) body
@@ -51,23 +51,57 @@
 
 ;(rewrite '((car (cons a b)) a) '(car (cons (atom x) (equal y z))))
 
-(defun (try-rewrites rules term)
-  (if (not rules) ()
-    (let ((term` (rewrite (car rules) term))
-	  (tail (try-rewrites (cdr rules) term)))
-      (if (eq term` 'fail) tail
-	(cons term` tail)))))
+(defun (rewrite-there rule term where)
+  (if (not where) (rewrite rule term)
+    (cond ((eq (car where) 'a)
+	   (let? ((a (rewrite-there rule (car term) (cdr where))))
+		 (cons a (cdr term))))
+	  ((eq (car where) 'd)
+	   (let? ((d (rewrite-there rule (cdr term) (cdr where))))
+		 (cons (car term) d)))
+	  (t 'fail))))
+
+;(rewrite-there '((cdr (cons a b)) b)
+;	       '(a (b (c d (cdr (cons (atom x) (equal y z))) e)) f)
+;	       '(d a d a d d a))
+
+(defun (rewrites-by-name names/rules term names/wheres)
+  (if (atom names/wheres) term
+    (let ((name (caar names/wheres))
+	  (where (cdar names/wheres)))
+      (let? ((name/rule (lookup name names/rules))
+	     (term` (rewrite-there (cdr name/rule) term where)))
+	    (rewrites-by-name names/rules term` (cdr names/wheres))))))
 
 (define *rewrite-rules*
-  '(((car (cons a b)) a)
-    ((cdr (cons a b)) b)
-    ((and (and a b) c) (and a (and b c)))
-    ((and t b) b)
-    ((and () b) ())
-    ((or (or a b) c) (or a (or b c)))
-    ((or () b) b)
-    ((atom (cons a b)) ())
-    ((if t a b) a)
-    ((if () a b) b)))
+  '((car-cons (car (cons a b)) a)
+    (cdr-cons (cdr (cons a b)) b)
+    (and-assoc (and (and a b) c) (and a (and b c)))
+    (and-t (and t b) b)
+    (and-nil (and () b) ())
+    (or-assoc (or (or a b) c) (or a (or b c)))
+    (or-nil (or () b) b)
+    (atom-cons (atom (cons a b)) ())
+    (if-t (if t a b) a)
+    (if-nil (if () a b) b)))
+
+(rewrites-by-name
+  *rewrite-rules*
+  '(if (atom (cons x y))
+     (cdr (cons (atom z) (equal w q)))
+     (car (cons (f g) (h j))))
+  '((atom-cons d a)
+    (if-nil)
+    (car-cons)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun (try-rewrites names/rules term)
+  (if (not names/rules) ()
+    (let* ((rule (cdar names/rules))
+	   (term` (rewrite rule term))
+	   (tail (try-rewrites (cdr names/rules) term)))
+      (if (eq term` 'fail) tail
+	(cons term` tail)))))
 
 (try-rewrites *rewrite-rules* '(car (cons (atom x) (equal y z))))
