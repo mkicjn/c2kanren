@@ -1,76 +1,73 @@
 ; Toy term rewriter (WIP)
-; Note: Not rigorously defined - duplicate symbols will cause problems
 
-(defun (walk x env)
-  (if (not (atom x)) x
-    (let ((m (assoc x env)))
-      (if (not m) x
-	(walk (cdr m) env)))))
+(defmacro (let? binds body)
+  (if (atom binds) body
+    (let ((var (caar binds))
+	  (val (cadar binds))
+	  (rest (cdr binds)))
+      (` let ((, var , val))
+	 (if (eq , var 'fail) 'fail
+	   (let? , rest , body))))))
 
-(defun (unify x y (h t) (env ()))
-  (let ((x (walk x env)))
-    (cond 
-      ((eq x y) env)
-      ((not x) (if (not y) env 'fail))
-      ((atom x) (cons (cons x y) env))
-      ((atom y) 'fail)
-      (h (if (not (eq (car x) (car y))) 'fail
-	   (unify (cdr x) (cdr y) () env)))
-      (t (let ((env (unify (car x) (car y) t env)))
-	   (if (eq env 'fail) 'fail
-	     (unify (cdr x) (cdr y) () env)))))))
+;(expand '(let? ((a (f 1)) (b (f 2))) (cons a b)))
 
-(defun (rephrase x env (h t))
-  (cond ((eq env 'fail) 'fail)
-	((not x) ())
-	((atom x) (walk x env))
-	(h (cons (car x) (rewrite (cdr x) env ())))
-	(t (let ((xa (rewrite (car x) env t))
-		 (xd (rewrite (cdr x) env ())))
-	     (cons xa xd)))))
+(defun (unify rule-lhs term (head t))
+  (cond (head (if (not (eq (car rule-lhs) (car term))) 'fail
+		(unify (cdr rule-lhs) (cdr term) ())))
+	((not rule-lhs) (if (not term) () 'fail))
+	((atom (car rule-lhs))
+	 (let? ((dbinds (unify (cdr rule-lhs) (cdr term) ())))
+	       (cons (cons (car rule-lhs) (car term)) dbinds)))
+	((atom (car term)) 'fail)
+	(t (let? ((abinds (unify (car rule-lhs) (car term) t))
+		  (dbinds (unify (cdr rule-lhs) (cdr term) ())))
+		 (append abinds dbinds)))))
 
-(defun (rewrite x rule (prop t))
-  (match rule
-	 ((equal , lhs , rhs)
-	  (rephrase rhs (unify lhs x)))
-	 ((iff , lhs , rhs)
-	  (if (not prop) 'fail
-	    (rephrase rhs (unify lhs x))))))
+;(unify '(car (cons a b)) '(car (cons (atom x) (equal y z))))
 
-;(rewrite '(car (cons x y)) '(equal (car (cons a b)) a)) 
+(defun (lookup sym env)
+  (let ((bind (assoc sym env)))
+    (if bind bind 'fail)))
 
-(defun (try-rewrites x rules prop)
-  (if (not rules) 'fail
-    (let ((xp (rewrite x (car rules) prop)))
-      (if (not (eq xp 'fail)) xp
-	(try-rewrites x (cdr rules) prop)))))
+(defun (rephrase rule-rhs env (head t))
+  (cond ((not rule-rhs) ())
+	((atom rule-rhs)
+	 (let? ((bind (lookup rule-rhs env)))
+	       (cdr bind)))
+	(head (let? ((tail (rephrase (cdr rule-rhs) env ())))
+		    (cons (car rule-rhs) tail)))
+	(t (let? ((head (rephrase (car rule-rhs) env t))
+		  (tail (rephrase (cdr rule-rhs) env ())))
+		 (cons head tail)))))
+
+;(rephrase 'a (unify '(car (cons a b)) '(car (cons (atom x) (equal y z)))))
+
+(defun (rewrite rule term)
+  (let ((lhs (car rule))
+	(rhs (cadr rule)))
+    (let? ((env (unify lhs term))
+	   (term` (rephrase rhs env)))
+	  term`)))
+
+;(rewrite '((car (cons a b)) a) '(car (cons (atom x) (equal y z))))
+
+(defun (try-rewrites rules term)
+  (if (not rules) ()
+    (let ((term` (rewrite (car rules) term))
+	  (tail (try-rewrites (cdr rules) term)))
+      (if (eq term` 'fail) tail
+	(cons term` tail)))))
 
 (define *rewrite-rules*
-  '((equal (car (cons a b)) a)
-    (equal (cdr (cons a b)) b)
-    (equal (and (and a b) c)
-	   (and a (and b c)))
-    (equal (and t b) b)
-    (equal (and () b) ())
-    (equal (or (or a b) c)
-	   (or a (or b c)))
-    (equal (or () b) b)
-    (equal (atom (cons a b)) ())
-    (equal (if t a b) a)
-    (equal (if () a b) b)
-    ))
+  '(((car (cons a b)) a)
+    ((cdr (cons a b)) b)
+    ((and (and a b) c) (and a (and b c)))
+    ((and t b) b)
+    ((and () b) ())
+    ((or (or a b) c) (or a (or b c)))
+    ((or () b) b)
+    ((atom (cons a b)) ())
+    ((if t a b) a)
+    ((if () a b) b)))
 
-;(try-rewrites '(car (cons x y)) *rewrite-rules* ())
-
-(defun (map-rewrite x rules prop)
-  (if (atom x) 'fail
-    (let ((a (try-rewrites (car x) rules prop)))
-      (if (not (eq a 'fail))
-	(cons a (cdr x))
-	(let ((d (map-rewrite (cdr x) rules ())))
-	  (if (not (eq d 'fail))
-	    (cons (car x) d)
-	    'fail))))))
-
-(let ((r (lambda (x) (map-rewrite x *rewrite-rules* ()))))
-  (r (r '(cons (car (cons d e)) (cdr (cons f g))))))
+(try-rewrites *rewrite-rules* '(car (cons (atom x) (equal y z))))
