@@ -18,7 +18,7 @@
 
 (defun (skibc term x)
   (if (atom term)
-    (if (eq term x) 'I (` 'K term))
+    (if (eq term x) 'I (` K , term))
     (let ((E1 (not (contains (car term) x)))
 	  (E2 (not (contains (cadr term) x))))
       (cond ((and E1 E2) (` K , term))
@@ -39,3 +39,16 @@
 (bracket skibc '(λ z (λ y (λ w (λ v (λ u (λ x ((((u v) ((w z) x)) ((x z) y)) ((z x) (y x))))))))))
 
 (bracket skibc '(λ f ((λ g (f (g g))) (λ g (f (g g))))))
+
+(bracket skibc '(λ s (λ z (s (s z)))))
+(bracket skibc '(λ s (λ z (s (s (s z))))))
+(bracket skibc '(λ s (λ z (s (s (s (s z)))))))
+
+(bracket ski '(λ x (x x)))
+
+(bracket skibc '(λ x (λ y ((x y) y))))
+
+; (λpow. λc2. λc3. pow c2 c3) (λm.λn. n m) (λs.λz. s (s z)) (λs.λz. s (s (s z)))
+(bracket skibc '((((λ pow (λ c2 (λ c3 ((pow c2) c3)))) (λ m (λ n (n m)))) (λ s (λ z (s (s z))))) (λ s (λ z (s (s (s (s z))))))))
+(bracket skibc '(λ n (λ s (λ z (s (n z))))))
+(bracket skibc '(λ s (λ z z)))
